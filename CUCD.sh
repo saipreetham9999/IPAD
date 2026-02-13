@@ -1,67 +1,58 @@
 #!/bin/sh
 
-# Prevent iPad from sleeping
+# 1. Prevent iPad sleep
 keepAwake
 
 BRANCH="main"
 
+echo "✅ Starting Continuous Deployment Server..."
 
-
-# --- OUTER LOOP: Handles Updates & Restarts ---
 while true; do
-    echo "========================================"
-    echo "♻️ Syncing with GitHub..."
+    # --- UPDATE SECTION ---
+    echo "♻️ Checking for updates..."
 
-    # 1. Force Sync
+    # Force sync with GitHub
     lg2 fetch origin
     lg2 reset --hard origin/$BRANCH
     lg2 pull origin $BRANCH
 
-    # 2. Update Dependencies
+    # Update libraries (in case requirements.txt changed)
     pip install -r requirements.txt
 
-    # 3. Start Server in Background
-    echo "🚀 Starting Flask App..."
-    # The '&' puts python in the background so the script continues
+    # --- SERVER SECTION ---
+    echo "🚀 Launching Flask..."
+
+    # Run Python in background
     python app.py &
 
-    # Capture the Process ID (PID) so we can kill it later
-    SERVER_PID=$!
-    echo "✅ Server running (PID: $SERVER_PID). Monitoring for updates..."
-
-    # --- INNER LOOP: Monitors for Changes ---
+    # --- MONITOR LOOP ---
+    # We loop here and check git every 60 seconds
     while true; do
-        # Wait 60 seconds before checking
         sleep 60
 
-        # Check remote without merging yet
+        # Check if remote has changes
         lg2 fetch origin
-
-        # Compare Local Commit vs Remote Commit
         LOCAL=$(lg2 rev-parse HEAD)
         REMOTE=$(lg2 rev-parse origin/$BRANCH)
 
         if [ "$LOCAL" != "$REMOTE" ]; then
-            echo "🔄 Update Detected! (Remote: $REMOTE)"
-            echo "🛑 Stopping current server..."
+            echo "🔄 Update Detected! Restarting..."
 
-            # Kill the Python server
-            kill $SERVER_PID
+            # THE FIX: Use 'killall' instead of 'kill $PID'
+            # This is more reliable in a-Shell to stop the server
+            killall python
 
-            # Wait a moment for it to close
-            wait $SERVER_PID 2>/dev/null
-
-            # Break inner loop -> Go back to top of Outer Loop
+            # Break inner loop to go back to Update Section
             break
         fi
 
-        # Optional: Check if server crashed on its own
-        # 'kill -0' checks if a process exists without actually killing it
-        if ! kill -0 $SERVER_PID 2>/dev/null; then
-            echo "⚠️ Server crashed unexpectedly! Restarting..."
-            break
+        # Optional: Verify server is still running.
+        # If 'python' process is gone, restart immediately.
+        if ! pgrep python > /dev/null; then
+             echo "⚠️ Server crashed! Restarting..."
+             break
         fi
 
-        echo -n "." # Print a dot to show it's alive
+        echo -n "."
     done
 done
