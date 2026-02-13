@@ -28,7 +28,7 @@ while true; do
     # --- MONITOR LOOP ---
     # We loop here and check git every 60 seconds
     while true; do
-        sleep 60
+        sleep 10
 
         # Check if remote has changes
         lg2 fetch origin
