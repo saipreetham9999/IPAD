@@ -1,7 +1,5 @@
 #!/bin/sh
- 
- # Prevent iPad from sleeping
-  keepAwake 
+
    
    # Force switch and sync with main
     lg2 checkout main
