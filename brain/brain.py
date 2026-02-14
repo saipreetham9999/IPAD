@@ -55,12 +55,10 @@ class Brain:
 
     def start(self):
         print("🧠 BRAIN BOOTING...\n")
-        print("[Brain.start] Starting all registered services...") # Diagnostic print
-        self.telegram_bot.send_message("🟢 Brain Online")
+        print("[Brain.start] Starting all registered services...")
         for service in self.services:
             service.start()
-            print(f"[Brain.start] {service.__class__.__name__} started") # More detailed print
-        # Send Telegram message AFTER all services have start
+            print(f"[Brain.start] {service.__class__.__name__} started")
 
     def stop(self):
         for service in reversed(self.services):
