@@ -33,10 +33,10 @@ def pull_changes():
     run_command([sys.executable, "-m", "pip", "install", "-r", "requirements.txt"])
 
 def start_server():
-    """Starts app.py as a subprocess."""
+    """Starts run.py as a subprocess."""
     print("🚀 Starting Flask Server...")
     # sys.executable ensures we use the same Python that runs this launcher
-    return subprocess.Popen([sys.executable, "app.py"])
+    return subprocess.Popen([sys.executable, "run.py"])
 
 def main():
     # 1. Prevent Sleep (a-shell specific command)
