@@ -2,7 +2,7 @@ import threading
 
 import requests
 import time
-from core.ara_service import AraService
+from core.AraService import AraService
 
 class MiniTelegramBot(AraService):
 

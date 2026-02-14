@@ -2,9 +2,9 @@ import unittest
 from unittest.mock import patch, MagicMock
 import io
 from brain.settings import Settings
-from bus.jo_bus import JoBus
+from bus.JoBus import JoBus
 from brain.brain import Brain
-from telegram.mini_telegram_bot import MiniTelegramBot # Import MiniTelegramBot
+from telegram.MinniTelegramBot import MiniTelegramBot # Import MiniTelegramBot
 
 class TestPhase1Heart(unittest.TestCase):
 
