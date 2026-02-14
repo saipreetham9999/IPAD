@@ -1,5 +1,4 @@
-from brain import create_app # Import create_app from the brain package
-# import threading # No longer needed here as Flask's app.run handles the main loop
+from brain import create_app
 
 # CONFIGURATION
 PORT = 8080
