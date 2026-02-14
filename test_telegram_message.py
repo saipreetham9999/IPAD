@@ -25,7 +25,7 @@ def test_send_telegram_message():
 
     # 5. Send the message
     try:
-        telegram_bot.send_message(test_message)
+        telegram_bot._send_message_worker(test_message)
         print(f"Successfully sent message: '{test_message}'")
     except Exception as e:
         print(f"Failed to send message: {e}")

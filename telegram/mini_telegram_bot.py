@@ -1,3 +1,4 @@
+import threading
 
 import requests
 import time
@@ -21,14 +22,25 @@ class MiniTelegramBot(AraService):
         return self._status
 
     def send_message(self, text):
+        threading.Thread(
+            target=self._send_message_worker,
+            args=(text,),
+            daemon=True
+        ).start()
+
+    def _send_message_worker(self, text):
         token = self.settings.TELEGRAM_TOKEN
         chat_id = self.settings.TELEGRAM_CHAT_ID
 
         url = f"https://api.telegram.org/bot{token}/sendMessage"
-        requests.post(url, json={
-            "chat_id": chat_id,
-            "text": text
-        })
+
+        try:
+            requests.post(url, json={
+                "chat_id": chat_id,
+                "text": text
+            }, timeout=5)
+        except Exception as e:
+            print("Telegram send error:", e)
 
     def listen(self):
         token = self.settings.TELEGRAM_TOKEN

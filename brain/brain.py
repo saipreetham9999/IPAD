@@ -20,14 +20,11 @@ class Brain:
 
     def start(self):
         print("🧠 BRAIN BOOTING...\n")
-
+        self.telegram.send_message("🟢 Brain Online")
         for service in self.services:
             service.start()
             print(f"{service.__class__.__name__} started")
 
-        print("\n🟢 BRAIN ONLINE")
-        # Send Telegram message when Brain is online
-        self.telegram.send_message("🟢 Brain Online")
 
     def stop(self):
         for service in reversed(self.services):
