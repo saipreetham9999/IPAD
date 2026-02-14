@@ -1,6 +1,6 @@
 from brain.settings import Settings
-from bus.jo_bus import JoBus
-from telegram.mini_telegram_bot import MiniTelegramBot
+from bus.JoBus import JoBus
+from telegram.MinniTelegramBot import MiniTelegramBot
 import os
 
 # Ensure environment variables are set for testing
