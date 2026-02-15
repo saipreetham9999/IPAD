@@ -60,8 +60,10 @@ class SaiVisionEngine(AraService):
         Called when a child sends a report.
         Checks for 'frame' data (base64 encoded image).
         """
+        log.info("Received report from child.")
         device = data.get("device_name", "unknown")
         report_type = data.get("type", "unknown")
+        frame_type = data.get("frame_type", "unknown")
         
         # Only process if it's a frame report and has data
         if report_type == "frame" and "data" in data:
@@ -70,7 +72,7 @@ class SaiVisionEngine(AraService):
         else:
             log.debug("Report from '%s' ignored (no frame data).", device)
 
-    def _analyze_frame(self, device: str, base64_image: str):
+    def _analyze_frame(self, device: str, jpeg_image: str):
         """
         Sends the image to the AI model for analysis.
         """
@@ -86,7 +88,7 @@ class SaiVisionEngine(AraService):
                     {
                         "type": "image_url",
                         "image_url": {
-                            "url": f"data:image/jpeg;base64,{base64_image}"
+                            "url": f"data:image/jpeg;base64,{jpeg_image}"
                         }
                     }
                 ]
@@ -109,7 +111,7 @@ class SaiVisionEngine(AraService):
             self.bus.publish("vision.analysis.result", {
                 "device": device,
                 "description": description,
-                "image_data": base64_image
+                "image_data": jpeg_image
             })
             
             # Also trigger a generic alert if it seems important (simple keyword check for now)

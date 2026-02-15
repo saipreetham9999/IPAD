@@ -91,7 +91,7 @@ class SaiOpenRouterClient:
                 json=payload,
                 timeout=30
             )
-
+            log.info("OpenRouter request sent")
             if response.status_code != 200:
                 error_msg = f"HTTP {response.status_code}"
                 try:
