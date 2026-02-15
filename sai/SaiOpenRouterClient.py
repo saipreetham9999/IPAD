@@ -1,7 +1,6 @@
 """
 SaiOpenRouterClient.py
 OpenRouter API client using requests (no extra dependencies)
-Part of Phase 5 — AI layer
 """
 
 import requests
@@ -12,33 +11,55 @@ from bus.JoLogger import get_logger
 log = get_logger("OpenRouterClient")
 
 class SaiOpenRouterClient:
-    """
-    Low-level OpenRouter API wrapper
-    Handles all HTTP calls to OpenRouter
-    """
-    
+    """Low-level OpenRouter API wrapper"""
+
     API_URL = "https://openrouter.ai/api/v1/chat/completions"
-    
-    # Free models available on OpenRouter (no credit needed for testing)
+
+    # 7 Verified Free Models
     FREE_MODELS = {
-        "mistral": "arcee-ai/trinity-large-preview:free",
-        "llama": "meta-llama/llama-3-8b-instruct:free",
-        "qwen": "qwen/qwen-7b-chat:free",
+        1: {
+            "id": "arcee-ai/trinity-large-preview:free",
+            "name": "Trinity Large",
+            "category": "General"
+        },
+        2: {
+            "id": "meta-llama/llama-3.1-8b-instruct:free",
+            "name": "Llama 3.1 8B",
+            "category": "Fast"
+        },
+        3: {
+            "id": "mistralai/mistral-7b-instruct:free",
+            "name": "Mistral 7B",
+            "category": "Fast"
+        },
+        4: {
+            "id": "qwen/qwen-7b-chat:free",
+            "name": "Qwen 7B",
+            "category": "Multilingual"
+        },
+        5: {
+            "id": "google/gemini-2-flash-lite:free",
+            "name": "Gemini Flash Lite",
+            "category": "Fast"
+        },
+        6: {
+            "id": "google/gemini-2-flash:free",
+            "name": "Gemini Flash",
+            "category": "General"
+        },
+        7: {
+            "id": "meta-llama/llama-3.3-70b-instruct:free",
+            "name": "Llama 3.3 70B",
+            "category": "Advanced"
+        }
     }
-    
+
     def __init__(self, api_key: str):
-        """
-        Initialize OpenRouter client
-        
-        Args:
-            api_key: OpenRouter API key
-        """
         self.api_key = api_key
         self.session = requests.Session()
-        
         if not api_key:
             log.warning("OpenRouter API key is empty")
-    
+
     def send_message(
         self,
         messages: List[Dict],
@@ -46,32 +67,15 @@ class SaiOpenRouterClient:
         temperature: float = 0.7,
         max_tokens: int = 500
     ) -> Dict:
-        """
-        Send message to OpenRouter and get response
-        
-        Args:
-            messages: List of message dicts [{"role": "user", "content": "..."}]
-            model: Model identifier (see FREE_MODELS)
-            temperature: 0.0-2.0 (higher = more creative)
-            max_tokens: Max response length
-        
-        Returns:
-            {
-                "success": bool,
-                "response": str,        # AI's reply
-                "tokens_used": int,
-                "model": str,
-                "error": str           # If failed
-            }
-        """
-        
+        """Send message to OpenRouter"""
+
         headers = {
             "Authorization": f"Bearer {self.api_key}",
             "Content-Type": "application/json",
             "HTTP-Referer": "https://brain-ai.local",
             "X-Title": "Brain Chat"
         }
-        
+
         payload = {
             "model": model,
             "messages": messages,
@@ -79,21 +83,15 @@ class SaiOpenRouterClient:
             "max_tokens": max_tokens,
             "top_p": 0.9
         }
-        
+
         try:
-            log.debug(
-                "Calling OpenRouter: model=%s, messages=%d, tokens=%d",
-                model, len(messages), max_tokens
-            )
-            
             response = self.session.post(
                 self.API_URL,
                 headers=headers,
                 json=payload,
                 timeout=30
             )
-            
-            # Check for HTTP errors
+
             if response.status_code != 200:
                 error_msg = f"HTTP {response.status_code}"
                 try:
@@ -102,8 +100,8 @@ class SaiOpenRouterClient:
                         error_msg = error_data["error"].get("message", error_msg)
                 except:
                     pass
-                
-                log.error("OpenRouter API error: %s", error_msg)
+
+                log.error("OpenRouter error: %s", error_msg)
                 return {
                     "success": False,
                     "error": error_msg,
@@ -111,12 +109,11 @@ class SaiOpenRouterClient:
                     "tokens_used": 0,
                     "model": model
                 }
-            
+
             data = response.json()
-            
-            # Validate response structure
+
             if "choices" not in data or len(data["choices"]) == 0:
-                log.error("Invalid response from OpenRouter: no choices")
+                log.error("No response from model")
                 return {
                     "success": False,
                     "error": "No response from model",
@@ -124,14 +121,10 @@ class SaiOpenRouterClient:
                     "tokens_used": 0,
                     "model": model
                 }
-            
-            # Extract message
+
             ai_message = data["choices"][0]["message"]["content"]
             tokens_used = data.get("usage", {}).get("total_tokens", 0)
-            
-            log.debug("OpenRouter response: %d tokens, %d chars", 
-                     tokens_used, len(ai_message))
-            
+
             return {
                 "success": True,
                 "response": ai_message,
@@ -139,52 +132,44 @@ class SaiOpenRouterClient:
                 "model": model,
                 "error": None
             }
-        
+
         except requests.exceptions.Timeout:
-            log.error("OpenRouter request timeout (30s)")
+            log.error("OpenRouter timeout")
             return {
                 "success": False,
-                "error": "Request timeout - OpenRouter not responding",
+                "error": "Request timeout",
                 "response": None,
                 "tokens_used": 0,
                 "model": model
             }
-        
+
         except requests.exceptions.ConnectionError as e:
-            log.error("OpenRouter connection error: %s", e)
+            log.error("OpenRouter connection error")
             return {
                 "success": False,
-                "error": "Network error - cannot reach OpenRouter",
+                "error": "Network error",
                 "response": None,
                 "tokens_used": 0,
                 "model": model
             }
-        
-        except json.JSONDecodeError:
-            log.error("Invalid JSON response from OpenRouter")
-            return {
-                "success": False,
-                "error": "Invalid response format from OpenRouter",
-                "response": None,
-                "tokens_used": 0,
-                "model": model
-            }
-        
+
         except Exception as e:
-            log.error("Unexpected OpenRouter error: %s", type(e).__name__)
+            log.error("Unexpected error: %s", type(e).__name__)
             return {
                 "success": False,
-                "error": f"Unexpected error: {type(e).__name__}",
+                "error": f"Error: {type(e).__name__}",
                 "response": None,
                 "tokens_used": 0,
                 "model": model
             }
-    
-    def get_available_models(self) -> Dict[str, str]:
-        """Get list of available free models"""
+
+    def get_available_models(self) -> Dict:
         return self.FREE_MODELS.copy()
-    
+
+    def get_model_by_number(self, number: int) -> Optional[str]:
+        if number in self.FREE_MODELS:
+            return self.FREE_MODELS[number]["id"]
+        return None
+
     def close(self):
-        """Close HTTP session"""
         self.session.close()
-        log.debug("Session closed")
