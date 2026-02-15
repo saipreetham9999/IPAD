@@ -7,6 +7,7 @@ import requests
 import json
 from typing import Dict, List, Optional
 from bus.JoLogger import get_logger
+from sai.SaiModelStore import SaiModelStore
 
 log = get_logger("OpenRouterClient")
 
@@ -14,45 +15,6 @@ class SaiOpenRouterClient:
     """Low-level OpenRouter API wrapper"""
 
     API_URL = "https://openrouter.ai/api/v1/chat/completions"
-
-    # 7 Verified Free Models
-    FREE_MODELS = {
-        1: {
-            "id": "arcee-ai/trinity-large-preview:free",
-            "name": "Trinity Large",
-            "category": "General"
-        },
-        2: {
-            "id": "deepseek/deepseek-r1-0528:free",
-            "name": "Deepseek",
-            "category": "Fast"
-        },
-        3: {
-            "id": "nvidia/nemotron-3-nano-30b-a3b:free",
-            "name": "NVIDIA: Nemotron 3 Nano",
-            "category": "Fast"
-        },
-        4: {
-            "id": "qwen/qwen3-coder:free",
-            "name": "Qwen 7B",
-            "category": "code"
-        },
-        5: {
-            "id": "nvidia/nemotron-nano-12b-v2-vl:free",
-            "name": "Gemini Flash Lite",
-            "category": "Fast"
-        },
-        6: {
-            "id": "qwen/qwen3-next-80b-a3b-instruct:free",
-            "name": "gwen",
-            "category": "General"
-        },
-        7: {
-            "id": "google/gemma-3n-e4b-it:free",
-            "name": "google/gemma-3n-e4b-it",
-            "category": "Advanced"
-        }
-    }
 
     def __init__(self, api_key: str):
         self.api_key = api_key
@@ -63,7 +25,7 @@ class SaiOpenRouterClient:
     def send_message(
         self,
         messages: List[Dict],
-        model: str = "arcee-ai/trinity-large-preview:free",
+        model: str = SaiModelStore.MODEL_TRINITY,
         temperature: float = 0.7,
         max_tokens: int = 500
     ) -> Dict:
@@ -164,11 +126,11 @@ class SaiOpenRouterClient:
             }
 
     def get_available_models(self) -> Dict:
-        return self.FREE_MODELS.copy()
+        return SaiModelStore.MODELS.copy()
 
     def get_model_by_number(self, number: int) -> Optional[str]:
-        if number in self.FREE_MODELS:
-            return self.FREE_MODELS[number]["id"]
+        if number in SaiModelStore.MODELS:
+            return SaiModelStore.MODELS[number]["id"]
         return None
 
     def close(self):

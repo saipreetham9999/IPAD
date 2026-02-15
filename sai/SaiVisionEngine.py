@@ -1,6 +1,7 @@
 from core.AraService import AraService
 from bus.JoLogger import get_logger
 from sai.SaiOpenRouterClient import SaiOpenRouterClient
+from sai.SaiModelStore import SaiModelStore
 from brain.settings import Settings
 
 log = get_logger("VisionEngine")
@@ -39,7 +40,7 @@ class SaiVisionEngine(AraService):
         # Vision model to use (must support image input)
         # Using Gemini Flash Lite or Qwen VL if available, otherwise falling back to text description
         # For now, we will use a model known to handle images if possible, or just text prompt
-        self.vision_model = "google/gemini-2.0-flash-lite-preview-02-05:free" 
+        self.vision_model = SaiModelStore.MODEL_TRINITY
 
     def start(self):
         self._status = "running"
