@@ -30,3 +30,7 @@ Thumbs.db
 .pytest_cache/
 htmlcov/
 .coverage
+
+# Runtime data
+logs/
+snapshots/

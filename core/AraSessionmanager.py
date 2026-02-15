@@ -1,8 +1,11 @@
 from core.AraService import AraService
+from bus.JoLogger import get_logger
 import uuid
 from datetime import datetime
 
 MAX_CHILDREN = 20
+log = get_logger("SessionManager")
+
 
 class AraSessionManager(AraService):
 
@@ -14,31 +17,29 @@ class AraSessionManager(AraService):
 
     def start(self):
         self._status = "running"
-        print("[SessionManager] Started.") # Added diagnostic print
+        log.info("Started.")
 
     def stop(self):
         self._status = "stopped"
-        print("[SessionManager] Stopped.") # Added diagnostic print
+        log.info("Stopped.")
 
     def status(self):
         return self._status
 
     def _handle_connection(self, identity):
         device_name = identity["device_name"]
-        print(f"[SessionManager] Received connection request for '{device_name}'.") # Added diagnostic print
+        log.debug("Connection request for '%s'", device_name)
 
-        # Check max children
         if len(self.sessions) >= MAX_CHILDREN:
-            print(f"[SessionManager] Rejected connection for '{device_name}': Max capacity ({MAX_CHILDREN}) reached.") # Added diagnostic print
+            log.warning("Rejected '%s': max capacity (%d)", device_name, MAX_CHILDREN)
             self.bus.publish("session.rejected", {
                 "device_name": device_name,
                 "reason": "max_capacity_reached"
             })
             return
 
-        # Check duplicates
         if device_name in self.sessions:
-            print(f"[SessionManager] Rejected connection for '{device_name}': Duplicate device.") # Added diagnostic print
+            log.warning("Rejected '%s': duplicate device", device_name)
             self.bus.publish("session.rejected", {
                 "device_name": device_name,
                 "reason": "duplicate_device"
@@ -59,4 +60,4 @@ class AraSessionManager(AraService):
             "device_type": identity["device_type"],
             "created_at": now
         })
-        print(f"[SessionManager] Created session for '{device_name}' (ID: {session_id}). Total active: {len(self.sessions)}/{MAX_CHILDREN}") # Added diagnostic print
+        log.info("Session created for '%s' (%d/%d)", device_name, len(self.sessions), MAX_CHILDREN)
