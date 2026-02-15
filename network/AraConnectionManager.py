@@ -25,15 +25,15 @@ class IdentityPayload:
 
 class AraConnectionManager(AraService):
 
-    def __init__(self, bus, host="0.0.0.0", port=8000):
+    def __init__(self, bus, host="0.0.0.0", port=8765):
         self.bus = bus
         self.host = host
         self.port = port
         self._status = "stopped"
         self.active_connections: dict[
-            str, websockets.WebSocketServerProtocol] = {}  # To store active WebSocket connections
-        self._websocket_server = None  # To hold the WebSocket server instance
-        self._loop = None  # To hold the asyncio event loop for the server thread
+            str, websockets.WebSocketServerProtocol] = {}
+        self._websocket_server = None
+        self._loop = None
 
     async def _websocket_handler(self, websocket: websockets.WebSocketServerProtocol, path: str):
         """

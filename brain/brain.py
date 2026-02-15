@@ -23,7 +23,7 @@ class Brain:
         self.connection_manager = AraConnectionManager(
             bus=self.bus,
             host="0.0.0.0",
-            port=8000
+            port=8765
         )
         self.session_manager = AraSessionManager(
             bus=self.bus
