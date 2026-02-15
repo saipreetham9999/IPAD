@@ -50,7 +50,6 @@ def connect():
     log.info("Connect request received from: %s", identity.get("device_name", "unknown"))
     brain = get_brain()
     result = brain.connection_manager.handle_connect(identity)
-    log.info("Raw JSON received: %s", identity)
 
     if result["status"] == "rejected":
         log.warning("Connect request rejected for %s: %s", identity.get("device_name"), result.get("reason"))
@@ -126,6 +125,7 @@ def report():
     
     brain = get_brain()
     brain.bus.publish("child.report.received", data)
+    log.info("Report published to bus %s", data)
     return jsonify({"status": "received"}), 200
 
 
