@@ -19,11 +19,43 @@ class SaiOpenRouterClient:
     
     API_URL = "https://openrouter.ai/api/v1/chat/completions"
     
-    # Free models available on OpenRouter (no credit needed for testing)
+    # 7 Verified Free Models
     FREE_MODELS = {
-        "mistral": "arcee-ai/trinity-large-preview:free",
-        "llama": "meta-llama/llama-3-8b-instruct:free",
-        "qwen": "qwen/qwen-7b-chat:free",
+        1: {
+            "id": "arcee-ai/trinity-large-preview:free",
+            "name": "Trinity Large",
+            "category": "General"
+        },
+        2: {
+            "id": "meta-llama/llama-3.1-8b-instruct:free",
+            "name": "Llama 3.1 8B",
+            "category": "Fast"
+        },
+        3: {
+            "id": "mistralai/mistral-7b-instruct:free",
+            "name": "Mistral 7B",
+            "category": "Fast"
+        },
+        4: {
+            "id": "qwen/qwen-7b-chat:free",
+            "name": "Qwen 7B",
+            "category": "Multilingual"
+        },
+        5: {
+            "id": "google/gemini-2-flash-lite:free",
+            "name": "Gemini Flash Lite",
+            "category": "Fast"
+        },
+        6: {
+            "id": "google/gemini-2-flash:free",
+            "name": "Gemini Flash",
+            "category": "General"
+        },
+        7: {
+            "id": "meta-llama/llama-3.3-70b-instruct:free",
+            "name": "Llama 3.3 70B",
+            "category": "Advanced"
+        }
     }
     
     def __init__(self, api_key: str):
@@ -180,11 +212,16 @@ class SaiOpenRouterClient:
                 "model": model
             }
     
-    def get_available_models(self) -> Dict[str, str]:
-        """Get list of available free models"""
+    def get_available_models(self) -> Dict:
+        """Get all available free models"""
         return self.FREE_MODELS.copy()
-    
+
+    def get_model_by_number(self, number: int) -> Optional[str]:
+        """Get model ID by selection number (1-7)"""
+        if number in self.FREE_MODELS:
+            return self.FREE_MODELS[number]["id"]
+        return None
+
     def close(self):
         """Close HTTP session"""
         self.session.close()
-        log.debug("Session closed")
