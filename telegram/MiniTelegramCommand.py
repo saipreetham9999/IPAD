@@ -151,12 +151,12 @@ class MiniTelegramCommand(AraService):
         """Show model selection menu - NO EMOJIS"""
         msg = "Select AI Model:\n\n"
         msg += "1. Trinity Large (General)\n"
-        msg += "2. Llama 3.1 8B (Fast)\n"
-        msg += "3. Mistral 7B (Fast)\n"
+        msg += "2. Deepseek 3.1 8B (Fast)\n"
+        msg += "3. nvidia 7B (Fast)\n"
         msg += "4. Qwen 7B (Multilingual)\n"
-        msg += "5. Gemini Flash Lite (Fast)\n"
-        msg += "6. Gemini Flash (General)\n"
-        msg += "7. Llama 3.3 70B (Advanced)\n\n"
+        msg += "5. nvidei Flash Lite (Fast)\n"
+        msg += "6. nvidei Flash (General)\n"
+        msg += "7. google 70B (Advanced)\n\n"
         msg += "Reply: 1-7"
 
         self.telegram_bot.send_message_to_chat(chat_id, msg)

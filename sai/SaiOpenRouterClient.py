@@ -23,33 +23,33 @@ class SaiOpenRouterClient:
             "category": "General"
         },
         2: {
-            "id": "meta-llama/llama-3.1-8b-instruct:free",
-            "name": "Llama 3.1 8B",
+            "id": "deepseek/deepseek-r1-0528:free",
+            "name": "Deepseek",
             "category": "Fast"
         },
         3: {
-            "id": "mistralai/mistral-7b-instruct:free",
-            "name": "Mistral 7B",
+            "id": "nvidia/nemotron-3-nano-30b-a3b:free",
+            "name": "NVIDIA: Nemotron 3 Nano",
             "category": "Fast"
         },
         4: {
-            "id": "qwen/qwen-7b-chat:free",
+            "id": "qwen/qwen3-coder:free",
             "name": "Qwen 7B",
-            "category": "Multilingual"
+            "category": "code"
         },
         5: {
-            "id": "google/gemini-2-flash-lite:free",
+            "id": "nvidia/nemotron-nano-12b-v2-vl:free",
             "name": "Gemini Flash Lite",
             "category": "Fast"
         },
         6: {
-            "id": "google/gemini-2-flash:free",
-            "name": "Gemini Flash",
+            "id": "qwen/qwen3-next-80b-a3b-instruct:free",
+            "name": "gwen",
             "category": "General"
         },
         7: {
-            "id": "meta-llama/llama-3.3-70b-instruct:free",
-            "name": "Llama 3.3 70B",
+            "id": "google/gemma-3n-e4b-it:free",
+            "name": "google/gemma-3n-e4b-it",
             "category": "Advanced"
         }
     }
