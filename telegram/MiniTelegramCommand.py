@@ -26,6 +26,7 @@ class MiniTelegramCommand(AraService):
         log.info("Started")
         self.bus.subscribe("telegram.message", self._on_message)
         self.bus.subscribe("alert.triggered", self._on_alert)
+        self.bus.subscribe("vision.analysis.result", self._on_vision_result)
 
     def stop(self):
         self._status = "stopped"
@@ -111,6 +112,19 @@ class MiniTelegramCommand(AraService):
         source = data.get("source", "unknown")
         message = data.get("message", "Alert triggered")
         self.telegram_bot.send_message(f"ALERT [{source}]: {message}")
+
+    def _on_vision_result(self, data: dict):
+        """Handle vision analysis results"""
+        device = data.get("device", "unknown")
+        description = data.get("description", "No description")
+        image_data = data.get("image_data")
+        
+        caption = f"[{device}] Vision Analysis:\n{description}"
+        
+        if image_data:
+            self.telegram_bot.send_photo(image_data, caption)
+        else:
+            self.telegram_bot.send_message(caption)
 
     def _send_status_report(self):
         """Send brain status"""

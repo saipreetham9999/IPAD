@@ -7,6 +7,7 @@ Merge the listen() method with your existing code
 import requests
 import time
 import threading
+import base64
 from core.AraService import AraService
 from bus.JoLogger import get_logger
 
@@ -70,6 +71,46 @@ class MiniTelegramBot(AraService):
             log.error("Timeout sending message")
         except Exception as e:
             log.error("Unexpected error sending message: %s", e)
+
+    def send_photo(self, photo_data: str, caption: str = None):
+        """
+        Send a photo to the main group chat.
+        
+        Args:
+            photo_data: Base64 encoded image string
+            caption: Optional caption for the photo
+        """
+        threading.Thread(
+            target=self._send_photo_worker,
+            args=(photo_data, caption),
+            daemon=True
+        ).start()
+
+    def _send_photo_worker(self, photo_data: str, caption: str):
+        """Worker to upload and send photo"""
+        token = self.settings.TELEGRAM_TOKEN
+        chat_id = self.settings.TELEGRAM_CHAT_ID
+        url = f"https://api.telegram.org/bot{token}/sendPhoto"
+        
+        try:
+            # Decode base64 to bytes
+            image_bytes = base64.b64decode(photo_data)
+            
+            files = {
+                "photo": ("image.jpg", image_bytes, "image/jpeg")
+            }
+            data = {
+                "chat_id": chat_id
+            }
+            if caption:
+                data["caption"] = caption
+
+            response = requests.post(url, data=data, files=files, timeout=30)
+            response.raise_for_status()
+            log.debug("Photo sent to group with caption: %s", caption)
+            
+        except Exception as e:
+            log.error("Failed to send photo: %s", e)
 
     def _get_initial_offset(self):
         token = self.settings.TELEGRAM_TOKEN
