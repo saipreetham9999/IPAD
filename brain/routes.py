@@ -12,7 +12,6 @@ def get_brain():
 # ── existing ──────────────────────────────────────────────────────────
 @bp.route("/")
 def index():
-    log.info("Index page accessed")
     brain = get_brain()
     children = brain.connection_manager.get_all()
     return jsonify({
@@ -24,7 +23,6 @@ def index():
 
 @bp.route("/api/status", methods=["GET"])
 def status():
-    log.info("Status endpoint accessed")
     brain = get_brain()
     children = brain.connection_manager.get_all()
     return jsonify({
@@ -52,6 +50,7 @@ def connect():
     log.info("Connect request received from: %s", identity.get("device_name", "unknown"))
     brain = get_brain()
     result = brain.connection_manager.handle_connect(identity)
+    log.info("Raw JSON received: %s", identity)
 
     if result["status"] == "rejected":
         log.warning("Connect request rejected for %s: %s", identity.get("device_name"), result.get("reason"))
