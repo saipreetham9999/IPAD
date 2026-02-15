@@ -13,8 +13,8 @@ class SaiModelStore(AraService):
     # --- Static Model Definitions ---
     
     # Vision Model (Multimodal)
-    MODEL_VISION = "google/gemini-2.0-flash-lite-preview-02-05:free"
-    MODEL_SOURCEFUL_VISION = "sourceful/riverflow-v2-fast-preview"
+    MODEL_VISION = "google/gemini-2.5-flash-image"
+    MODEL_SOURCEFUL_VISION = "black-forest-labs/flux.2-pro"
     MODEL_FREE_SEARCH = "openrouter/free"
 
 
