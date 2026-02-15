@@ -209,9 +209,9 @@ class MiniTelegramCommand(AraService):
 
         # CORRECTED MODEL NAMES
         model_map = {
-            "mistral": "mistralai/mistral-7b-instruct:free",
-            "llama": "meta-llama/llama-3.1-8b-instruct:free",
-            "qwen": "qwen/qwen2-7b-instruct:free"
+            "mistral": "arcee-ai/trinity-large-preview:free",
+            "llama": "meta-llama/llama-3-8b-instruct:free",
+            "qwen": "qwen/qwen-7b-chat:free"
         }
 
         model = model_map.get(model_alias, model_map["mistral"])

@@ -42,7 +42,7 @@ class SaiOpenRouterClient:
     def send_message(
         self,
         messages: List[Dict],
-        model: str = "mistralai/mistral-7b:free",
+        model: str = "arcee-ai/trinity-large-preview:free",
         temperature: float = 0.7,
         max_tokens: int = 500
     ) -> Dict:
