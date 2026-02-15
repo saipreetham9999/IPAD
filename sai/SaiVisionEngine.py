@@ -40,7 +40,7 @@ class SaiVisionEngine(AraService):
         # Vision model to use (must support image input)
         # Using Gemini Flash Lite or Qwen VL if available, otherwise falling back to text description
         # For now, we will use a model known to handle images if possible, or just text prompt
-        self.vision_model = SaiModelStore.MODEL_TRINITY
+        self.vision_model = SaiModelStore.MODEL_FREE_SEARCH
 
     def start(self):
         self._status = "running"
