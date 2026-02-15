@@ -1,3 +1,4 @@
+
 from brain.settings import Settings
 from bus.JoBus import JoBus
 from children.AraChildManager import AraChildManager
@@ -20,11 +21,8 @@ class Brain:
         )
 
         # Phase 2 Services
-        self.connection_manager = AraConnectionManager(
-            bus=self.bus,
-            host="0.0.0.0",
-            port=8765
-        )
+        self.connection_manager = AraConnectionManager(bus=self.bus)
+
         self.session_manager = AraSessionManager(
             bus=self.bus
         )

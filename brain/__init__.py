@@ -1,6 +1,7 @@
 from flask import Flask
 from brain.brain import Brain
-from brain.routes import main_bp # Import the blueprint
+from brain.routes import bp as main_bp
+
 
 def create_app():
     print("[create_app] Initializing Flask application...")
