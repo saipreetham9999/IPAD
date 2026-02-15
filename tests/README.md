@@ -9,7 +9,7 @@ Tests for the iPad Brain network system. Two approaches available: **pytest** (c
 python tests/test_brain_standalone.py
 
 # Against remote Brain (iPad)
-python tests/test_brain_standalone.py http://192.168.1.100:8080
+python tests/test_brain_standalone.py http://192.168.0.183:8080
 ```
 
 **Output:**

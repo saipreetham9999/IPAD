@@ -1,3 +1,9 @@
+"""
+UPDATED MinniTelegramBot.py
+Sends rich message data (with user_id, username, chat_id) instead of just text
+Merge the listen() method with your existing code
+"""
+
 import requests
 import time
 import threading
@@ -77,6 +83,9 @@ class MiniTelegramBot(AraService):
         return 0
 
     def listen(self):
+        """
+        Listen for Telegram updates and publish rich message data
+        """
         token = self.settings.TELEGRAM_TOKEN
         current_offset = self.offset
 
@@ -87,10 +96,28 @@ class MiniTelegramBot(AraService):
 
                 for update in response.get("result", []):
                     current_offset = update["update_id"] + 1
+
                     if "message" in update and "text" in update["message"]:
-                        message = update["message"]["text"]
-                        log.debug("Received: %s", message)
-                        self.bus.publish("telegram.command", message)
+                        message_data = update["message"]
+                        text = message_data["text"]
+
+                        # Extract user info
+                        user_id = message_data["from"]["id"]
+                        username = message_data["from"].get("username", "unknown")
+                        chat_id = message_data["chat"]["id"]
+
+                        log.debug(
+                            "Received from @%s (user_id=%d): %s",
+                            username, user_id, text[:50]
+                        )
+
+                        # Publish rich message data
+                        self.bus.publish("telegram.message", {
+                            "text": text,
+                            "user_id": user_id,
+                            "username": username,
+                            "chat_id": chat_id
+                        })
 
             except requests.exceptions.RequestException as e:
                 log.error("Error fetching updates: %s", e)
@@ -98,3 +125,31 @@ class MiniTelegramBot(AraService):
                 log.error("Unexpected error in listen loop: %s", e)
 
             time.sleep(2)
+
+    def send_message_to_chat(self, chat_id: int, text: str):
+        """Send to specific chat (user, group, anyone)"""
+        threading.Thread(
+            target=self._send_message_worker_to_chat,
+            args=(chat_id, text),
+            daemon=True
+        ).start()
+
+    def _send_message_worker_to_chat(self, chat_id: int, text: str):
+        """Worker thread to send message to specific chat (non-blocking)"""
+        token = self.settings.TELEGRAM_TOKEN
+        url = f"https://api.telegram.org/bot{token}/sendMessage"
+        try:
+            response = requests.post(url, json={
+                "chat_id": chat_id,
+                "text": text
+            }, timeout=10)
+            response.raise_for_status()
+            log.debug("Message sent to chat %d: '%s'", chat_id, text[:60])
+        except requests.exceptions.HTTPError as e:
+            log.error("HTTP error sending to %d: %s", chat_id, e)
+        except requests.exceptions.ConnectionError as e:
+            log.error("Connection error sending to %d: %s", chat_id, e)
+        except requests.exceptions.Timeout:
+            log.error("Timeout sending to chat %d", chat_id)
+        except Exception as e:
+            log.error("Unexpected error sending to %d: %s", chat_id, e)

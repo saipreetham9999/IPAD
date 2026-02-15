@@ -5,6 +5,9 @@ from children.AraChildManager import AraChildManager
 from core.AraSessionmanager import AraSessionManager
 from network.AraConnectionManager import AraConnectionManager
 from notifications.MinniMessegeRouter import MiniMessageRouter
+from sai.SaiChatOrchestrator import SaiChatOrchestrator
+from sai.SaiChatSessionManager import SaiChatSessionManager
+from sai.SaiOpenRouterClient import SaiOpenRouterClient
 from telegram.MiniTelegramCommand import MiniTelegramCommand
 from telegram.MinniTelegramBot import MiniTelegramBot
 
@@ -65,6 +68,21 @@ class Brain:
             tier_manager=self.tier_manager,
             alert_rules=self.alert_rules
         )
+        self.openrouter_client = SaiOpenRouterClient(
+            api_key=self.settings.OPENROUTER_API_KEY
+        )
+        self.chat_session_manager = SaiChatSessionManager(
+            bus=self.bus,
+            max_users=20,  # Max 20 concurrent users
+            idle_timeout_seconds=1800  # 30 minutes
+        )
+        self.chat_orchestrator = SaiChatOrchestrator(
+            bus=self.bus,
+            session_manager=self.chat_session_manager,
+            openrouter_client=self.openrouter_client,
+            telegram_bot=self.telegram_bot,
+            settings=self.settings
+        )
 
         # Phase 6 — Memory
         self.event_logger = JoEventLogger(bus=self.bus)
@@ -89,15 +107,27 @@ class Brain:
             self.child_manager,
             self.telegram_command,
             self.message_router,
+
+            # Phase 5 — AI
             self.model_store,
             self.alert_rules,
             self.tier_manager,
             self.vision_engine,
+
+            # Phase 5 — Chat (NEW)
+            self.chat_session_manager,
+            self.chat_orchestrator,
+
+            # Phase 6 — Memory
             self.event_logger,
             self.snapshot_manager,
+
+            # Phase 7 — Resilience
             self.reconnect_manager,
             self.health_checker,
             self.fallback_handler,
+
+            # Phase 8 — Shields
             self.watchdog,
         ]
 

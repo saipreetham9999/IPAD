@@ -3,7 +3,7 @@ from bus.JoLogger import get_logger
 import uuid
 from datetime import datetime
 
-MAX_CHILDREN = 20
+MAX_CHILDREN = 200
 log = get_logger("SessionManager")
 
 

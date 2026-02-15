@@ -1,63 +1,56 @@
 """
-MiniTelegramCommand.py - COMPLETE & CORRECTED
-Handles both Brain commands and Chat commands
-All model names corrected for OpenRouter
+UPDATED MiniTelegramCommand.py
+Integrates OpenRouter chat commands with existing command handler
+Merge this with your existing MiniTelegramCommand
 """
 
 from core.AraService import AraService
 from bus.JoLogger import get_logger
-from telegram.MinniTelegramBot import MiniTelegramBot
-from children.AraChildManager import AraChildManager
-from bus.JoBus import JoBus
 
 log = get_logger("TelegramCommand")
 
 
 class MiniTelegramCommand(AraService):
-    """
-    Telegram command handler
-    - Handles brain commands: /status, /hello, /children
-    - Handles chat commands: /chat_start, /chat_end, /chat_status, /chat_help
-    - Routes regular messages to chat orchestrator
-    """
 
-    def __init__(self, bus: JoBus, telegram_bot: MiniTelegramBot, child_manager: AraChildManager):
+    def __init__(self, bus, telegram_bot, child_manager):
         self.bus = bus
         self.telegram_bot = telegram_bot
         self.child_manager = child_manager
         self._status = "stopped"
 
     def start(self):
-        """Start the service"""
         if self._status == "running":
             return
         self._status = "running"
         log.info("Started.")
+
+        # OLD: Listen for simple command strings
+        # self.bus.subscribe("telegram.command", self._handle_command)
+
+        # NEW: Listen for rich message data (from updated MinniTelegramBot)
         self.bus.subscribe("telegram.message", self._on_message)
+
+        # Alerts only — no connect/disconnect noise to Telegram
         self.bus.subscribe("alert.triggered", self._on_alert)
 
     def stop(self):
-        """Stop the service"""
         self._status = "stopped"
         log.info("Stopped.")
 
     def status(self):
-        """Get service status"""
         return self._status
 
     # ========================================================================
-    # Main message handler
+    # UPDATED: Handle rich message data from MinniTelegramBot
     # ========================================================================
 
     def _on_message(self, data: dict):
         """
-        Handle telegram message with rich data.
-        If the message starts with '/', it's a command.
-        Otherwise, it's a chat message.
+        Handle telegram message with rich data
 
         Expected data:
         {
-            "text": "message text",
+            "text": "/status",
             "user_id": 123456,
             "username": "john_doe",
             "chat_id": 789012
@@ -68,8 +61,7 @@ class MiniTelegramCommand(AraService):
         username = data.get("username", "unknown")
         chat_id = data.get("chat_id")
 
-        if not text or not user_id or not chat_id:
-            log.warning("Invalid message data: %s", data)
+        if not text:
             return
 
         log.debug("Message from @%s: %s", username, text[:50])
@@ -77,8 +69,8 @@ class MiniTelegramCommand(AraService):
         # If starts with /, it's a command
         if text.startswith("/"):
             self._handle_command(text, user_id, username, chat_id)
+        # Otherwise, route to chat
         else:
-            # Regular chat message - publish for orchestrator
             self.bus.publish("telegram.chat_message", {
                 "user_id": user_id,
                 "username": username,
@@ -87,41 +79,29 @@ class MiniTelegramCommand(AraService):
             })
 
     # ========================================================================
-    # Command handler
+    # Command handler (updated to handle chat commands)
     # ========================================================================
 
-    def _handle_command(self, command_text: str, user_id: int, username: str, chat_id: int):
+    def _handle_command(self, command_text: str, user_id: int = None,
+                        username: str = None, chat_id: int = None):
         """
         Handle telegram commands
-
-        Brain commands:
-        - /status - Show brain status
-        - /hello - Greet user
-        - /children - List connected devices
-
-        Chat commands:
-        - /chat_start [model] - Start chat session
-        - /chat_end - End chat session
-        - /chat_status - Show chat system status
-        - /chat_help - Show chat help
+        Supports both old format (string only) and new format (with user data)
         """
         log.debug("Command: %s from @%s", command_text, username)
         command = command_text.strip().lower()
 
-        # --- Brain commands ---
+        # --- Brain status commands ---
         if command == "/status":
             self._send_status_report()
 
         elif command == "/hello":
-            self.telegram_bot.send_message_to_chat(
-                chat_id,
-                "Hello! Brain is online. Use /chat_start to begin a conversation."
-            )
+            self.telegram_bot.send_message("Hello! Brain is online and listening.")
 
         elif command == "/children":
-            self._send_children_list(chat_id)
+            self._send_children_list()
 
-        # --- Chat commands ---
+        # --- Chat commands (NEW) ---
         elif command.startswith("/chat_start"):
             self._handle_chat_start(command_text, user_id, username, chat_id)
 
@@ -137,31 +117,32 @@ class MiniTelegramCommand(AraService):
         # --- Unknown command ---
         else:
             msg = f"Unknown command: {command_text}\n\n"
-            msg += "Use /chat_start to begin a conversation or /chat_help for more options."
-            self.telegram_bot.send_message_to_chat(chat_id, msg)
+            msg += "Available commands:\n"
+            msg += "/status - Brain status\n"
+            msg += "/children - Connected devices\n"
+            msg += "/chat_start - Start AI chat\n"
+            msg += "/chat_end - End AI chat\n"
+            msg += "/chat_status - Chat system status\n"
+            msg += "/chat_help - Chat help"
+            self.telegram_bot.send_message(msg)
 
     # ========================================================================
-    # Brain commands
+    # Brain status commands (existing)
     # ========================================================================
 
     def _on_alert(self, data: dict):
-        """
-        Handle alerts - sends to main Telegram group (not user chat)
-        """
+        """Alerts only — per spec"""
         source = data.get("source", "unknown")
         message = data.get("message", "Alert triggered")
         self.telegram_bot.send_message(f"ALERT [{source}]: {message}")
         log.info("Alert sent to Telegram: %s", message[:60])
 
     def _send_status_report(self):
-        """
-        Send brain status report to main group
-        Shows: online/offline, connected devices count
-        """
+        """Show brain status"""
         children = self.child_manager.get_all()
         count = len(children)
 
-        report = f"Brain Status: Online\n"
+        report = "🧠 Brain Status: Online\n"
         report += f"Connected Children: {count}\n"
 
         if count > 0:
@@ -174,51 +155,42 @@ class MiniTelegramCommand(AraService):
 
         self.telegram_bot.send_message(report)
 
-    def _send_children_list(self, chat_id: int):
-        """
-        Send list of connected devices to user chat
-        """
+    def _send_children_list(self):
+        """List connected devices"""
         children = self.child_manager.get_all()
-
         if not children:
-            self.telegram_bot.send_message_to_chat(chat_id, "No children connected.")
+            self.telegram_bot.send_message("No children connected.")
             return
-
-        msg = "Connected devices:\n"
+        msg = "📱 Connected devices:\n"
         for name, data in children.items():
-            device_type = data.get("device_type", "?")
-            msg += f"  - {name} ({device_type})\n"
-
-        self.telegram_bot.send_message_to_chat(chat_id, msg)
+            msg += f"  - {name} ({data.get('device_type', '?')})\n"
+        self.telegram_bot.send_message(msg)
 
     # ========================================================================
-    # Chat commands
+    # Chat commands (NEW) — publish to bus for orchestrator to handle
     # ========================================================================
 
-    def _handle_chat_start(self, command_text: str, user_id: int, username: str, chat_id: int):
+    def _handle_chat_start(self, command_text: str, user_id: int,
+                           username: str, chat_id: int):
         """
-        Handle /chat_start [model] command
-
-        Usage:
-        /chat_start           - Start with Mistral (default)
-        /chat_start llama     - Start with Llama
-        /chat_start qwen      - Start with Qwen
+        Handle /chat_start [model]
+        Models: mistral (default), llama, qwen
         """
         parts = command_text.split()
         model_alias = parts[1].lower() if len(parts) > 1 else "mistral"
 
-        # CORRECTED MODEL NAMES
+        # Map alias to full model name
         model_map = {
-            "mistral": "mistralai/mistral-7b-instruct:free",
-            "llama": "meta-llama/llama-3.1-8b-instruct:free",
-            "qwen": "qwen/qwen2-7b-instruct:free"
+            "mistral": "mistralai/mistral-7b:free",
+            "llama": "meta-llama/llama-3-8b-instruct:free",
+            "qwen": "qwen/qwen-7b-chat:free"
         }
 
         model = model_map.get(model_alias, model_map["mistral"])
 
         log.info("Chat start requested: @%s with %s", username, model_alias)
 
-        # Publish start request for orchestrator
+        # Publish to bus for orchestrator to handle
         self.bus.publish("chat.start_request", {
             "user_id": user_id,
             "username": username,
@@ -227,12 +199,8 @@ class MiniTelegramCommand(AraService):
         })
 
     def _handle_chat_end(self, user_id: int, username: str, chat_id: int):
-        """
-        Handle /chat_end command
-        Ends the user's chat session
-        """
+        """Handle /chat_end"""
         log.info("Chat end requested: @%s", username)
-
         self.bus.publish("chat.end_request", {
             "user_id": user_id,
             "username": username,
@@ -240,22 +208,15 @@ class MiniTelegramCommand(AraService):
         })
 
     def _handle_chat_status(self, chat_id: int):
-        """
-        Handle /chat_status command
-        Shows chat system status and active sessions
-        """
+        """Handle /chat_status"""
         log.info("Chat status requested")
-
         self.bus.publish("chat.status_request", {
             "chat_id": chat_id
         })
 
     def _handle_chat_help(self, chat_id: int):
-        """
-        Handle /chat_help command
-        Shows available chat commands and usage
-        """
-        msg = """AI Chat Help
+        """Handle /chat_help"""
+        msg = """🤖 AI Chat Help
 
 Commands:
 /chat_start [model]  Start a chat session
@@ -267,16 +228,11 @@ Commands:
 
 /chat_help           Show this help
 
-Brain Commands:
-/status              Show brain status
-/children            List connected devices
-/hello               Greet the bot
+Just type a message to chat after /chat_start!
 
-After starting a chat, just type a message!
+Examples:
+  /chat_start
+  What is the capital of France?
+  /chat_end"""
 
-Example:
-/chat_start
-What is the capital of France?
-/chat_end"""
-
-        self.telegram_bot.send_message_to_chat(chat_id, msg)
+        self.telegram_bot.send_message(msg)
