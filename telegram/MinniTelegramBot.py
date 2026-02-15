@@ -93,6 +93,10 @@ class MiniTelegramBot(AraService):
         url = f"https://api.telegram.org/bot{token}/sendPhoto"
         
         try:
+            # Clean up base64 string if it has header
+            if "," in photo_data:
+                photo_data = photo_data.split(",")[1]
+
             # Decode base64 to bytes
             image_bytes = base64.b64decode(photo_data)
             
@@ -106,6 +110,11 @@ class MiniTelegramBot(AraService):
                 data["caption"] = caption
 
             response = requests.post(url, data=data, files=files, timeout=30)
+            
+            # Log response content if error
+            if response.status_code != 200:
+                log.error("Telegram API Error: %s", response.text)
+
             response.raise_for_status()
             log.debug("Photo sent to group with caption: %s", caption)
             

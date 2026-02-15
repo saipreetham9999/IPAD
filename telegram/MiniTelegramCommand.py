@@ -41,13 +41,14 @@ class MiniTelegramCommand(AraService):
 
     def _on_message(self, data: dict):
         """Handle incoming telegram message"""
+
         text = data.get("text", "")
+        # log.info("Text %s", text) # Removed to prevent logging large payloads
         user_id = data.get("user_id")
         username = data.get("username", "unknown")
         chat_id = data.get("chat_id")
-
         if not text or not user_id or not chat_id:
-            log.warning("Invalid message data")
+            # log.warning("Invalid message data")
             return
 
         if text.startswith("/"):
@@ -74,11 +75,10 @@ class MiniTelegramCommand(AraService):
 
     def _handle_command(self, command_text: str, user_id: int, username: str, chat_id: int):
         """Handle / commands"""
+        log.info("Command %s", command_text)
         command = command_text.strip().lower()
-
         if command == "/status":
             self._send_status_report()
-
         elif command == "/hello":
             self.telegram_bot.send_message_to_chat(
                 chat_id,
