@@ -1,6 +1,9 @@
 import threading
 import time
 from core.AraService import AraService
+from bus.JoLogger import get_logger
+
+log = get_logger("ConnectionManager")
 
 
 class AraConnectionManager(AraService):
@@ -9,13 +12,11 @@ class AraConnectionManager(AraService):
         self.bus = bus
         self._status = "stopped"
         self._lock = threading.Lock()
-        # active_children = { device_name: { identity + last_seen } }
         self.active_children = {}
         self._cleanup_thread = None
         self._running = False
-        self.HEARTBEAT_TIMEOUT = 15  # seconds before child marked lost
+        self.HEARTBEAT_TIMEOUT = 15
 
-    # ── called by Flask route POST /api/connect ──────────────────────
     def handle_connect(self, identity: dict) -> dict:
         device_name = identity.get("device_name")
         device_type = identity.get("device_type")
@@ -32,12 +33,10 @@ class AraConnectionManager(AraService):
                 "last_seen": time.time(),
             }
 
-        print(f"[AraConnectionManager] '{device_name}' connected. Total: {len(self.active_children)}")
+        log.info("'%s' connected. Total: %d", device_name, len(self.active_children))
         self.bus.publish("child.connection.requested", identity)
-
         return {"status": "connected", "device": device_name}
 
-    # ── called by Flask route POST /api/heartbeat ─────────────────────
     def handle_heartbeat(self, device_name: str) -> dict:
         with self._lock:
             if device_name in self.active_children:
@@ -46,15 +45,13 @@ class AraConnectionManager(AraService):
             else:
                 return {"status": "unknown", "reason": "not registered, reconnect"}
 
-    # ── called by Flask route POST /api/disconnect ────────────────────
     def handle_disconnect(self, device_name: str):
         with self._lock:
             if device_name in self.active_children:
                 del self.active_children[device_name]
-                print(f"[AraConnectionManager] '{device_name}' disconnected.")
+                log.info("'%s' disconnected.", device_name)
         self.bus.publish("child.disconnected", {"device_name": device_name, "reason": "client_request"})
 
-    # ── background cleanup — removes silent children ──────────────────
     def _cleanup_loop(self):
         while self._running:
             time.sleep(5)
@@ -65,19 +62,17 @@ class AraConnectionManager(AraService):
                 for name, child in self.active_children.items():
                     if now - child["last_seen"] > self.HEARTBEAT_TIMEOUT:
                         lost.append(name)
-
                 for name in lost:
                     del self.active_children[name]
-                    print(f"[AraConnectionManager] '{name}' timed out — removed.")
 
             for name in lost:
+                log.warning("'%s' timed out — removed.", name)
                 self.bus.publish("child.disconnected", {"device_name": name, "reason": "heartbeat_timeout"})
 
     def get_all(self) -> dict:
         with self._lock:
             return dict(self.active_children)
 
-    # ── AraService interface ──────────────────────────────────────────
     def start(self):
         if self._status == "running":
             return
@@ -85,12 +80,12 @@ class AraConnectionManager(AraService):
         self._status = "running"
         self._cleanup_thread = threading.Thread(target=self._cleanup_loop, daemon=True)
         self._cleanup_thread.start()
-        print("[AraConnectionManager] Started. Waiting for HTTP connections on /api/connect")
+        log.info("Started. Listening on /api/connect")
 
     def stop(self):
         self._running = False
         self._status = "stopped"
-        print("[AraConnectionManager] Stopped.")
+        log.info("Stopped.")
 
     def status(self):
         return self._status

@@ -88,10 +88,11 @@ def events():
     if not device_name:
         return jsonify({"status": "error", "reason": "device_name required"}), 400
 
-    # placeholder — Phase 4 will fill this with real alerts
+    brain = get_brain()
+    pending = brain.message_router.pop_events(device_name)
     return jsonify({
         "status": "ok",
-        "events": []
+        "events": pending
     }), 200
 
 
@@ -105,3 +106,17 @@ def report():
     brain = get_brain()
     brain.bus.publish("child.report.received", data)
     return jsonify({"status": "received"}), 200
+
+
+@bp.route("/api/health", methods=["GET"])
+def health():
+    """Returns health status of all services."""
+    brain = get_brain()
+    report = brain.health_checker.get_report()
+    all_healthy = all(s == "running" for s in report.values())
+    return jsonify({
+        "status": "healthy" if all_healthy else "degraded",
+        "services": report,
+        "ai_tier": brain.tier_manager.get_tier(),
+        "ai_processor": brain.tier_manager.get_processor(),
+    }), 200 if all_healthy else 503

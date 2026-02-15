@@ -2,100 +2,97 @@ import subprocess
 import time
 import sys
 import os
+import logging
+from logging.handlers import RotatingFileHandler
 
 # --- CONFIGURATION ---
 REPO_BRANCH = "main"
-CHECK_INTERVAL = 10  # Seconds between checks
+CHECK_INTERVAL = 10
+
+# --- Logger (standalone, not JoLogger — supervisor runs separately) ---
+log = logging.getLogger("Supervisor")
+log.setLevel(logging.INFO)
+fmt = logging.Formatter("[%(asctime)s] [%(levelname)s] [%(name)s] %(message)s", "%Y-%m-%d %H:%M:%S")
+console = logging.StreamHandler()
+console.setFormatter(fmt)
+log.addHandler(console)
+
+LOG_DIR = os.path.join(os.path.dirname(__file__), "logs")
+os.makedirs(LOG_DIR, exist_ok=True)
+fh = RotatingFileHandler(os.path.join(LOG_DIR, "supervisor.log"), maxBytes=1*1024*1024, backupCount=2)
+fh.setFormatter(fmt)
+log.addHandler(fh)
+
 
 def run_command(command):
-    """Runs a shell command and returns the output."""
     try:
-        # Using a list of args is safer than shell=True
         result = subprocess.check_output(command, text=True, stderr=subprocess.STDOUT).strip()
         return result
     except subprocess.CalledProcessError as e:
-        print(f"Error running command '{' '.join(command)}': {e.output}")
+        log.error("Command '%s' failed: %s", ' '.join(command), e.output)
         return None
 
+
 def get_commit_hash(target):
-    """Gets the git commit hash for local or remote."""
-    # Note: a-shell might not support all git commands.
-    # 'git rev-parse' is a standard and reliable command.
     return run_command(["git", "rev-parse", target])
 
+
 def pull_changes():
-    """Pulls code and updates dependencies."""
-    print("\n♻️  Downloading updates...")
+    log.info("Downloading updates...")
     run_command(["git", "fetch", "origin"])
     run_command(["git", "reset", "--hard", f"origin/{REPO_BRANCH}"])
-    
-    print("📦 Installing requirements...")
+    log.info("Installing requirements...")
     run_command([sys.executable, "-m", "pip", "install", "-r", "requirements.txt"])
 
+
 def start_server():
-    """Starts run.py as a subprocess."""
-    print("🚀 Starting Flask Server...")
-    # sys.executable ensures we use the same Python that runs this launcher
+    log.info("Starting Flask Server...")
     return subprocess.Popen([sys.executable, "run.py"])
 
-def main():
-    # 1. Prevent Sleep (a-shell specific command)
-    print("Trying to activate 'keepAwake' for a-shell...")
-    os.system("keepAwake") 
-    print("✅ Supervisor Started. Monitoring for updates...")
 
-    # 2. Initial Update and Start
+def main():
+    log.info("Trying to activate keepAwake...")
+    os.system("keepAwake")
+    log.info("Supervisor started. Monitoring for updates...")
+
     pull_changes()
     current_process = start_server()
 
     while True:
         try:
-            # --- CHECK 1: Is the server still running? ---
             if current_process.poll() is not None:
-                print("\n⚠️  Server crashed! Restarting immediately...")
+                log.warning("Server crashed! Restarting...")
                 current_process = start_server()
-                # Wait a moment before starting the check cycle again
                 time.sleep(CHECK_INTERVAL)
                 continue
 
-            # --- CHECK 2: Are there updates on GitHub? ---
-            print(".", end="", flush=True) # Heartbeat to show it's alive
-            
-            # Fetch origin without merging to see if there is a change
             run_command(["git", "fetch", "origin"])
-            
             local_hash = get_commit_hash("HEAD")
             remote_hash = get_commit_hash(f"origin/{REPO_BRANCH}")
 
             if local_hash and remote_hash and local_hash != remote_hash:
-                print(f"\n🔄 Update Detected!")
-                print(f"   Local:  {local_hash[:7]}")
-                print(f"   Remote: {remote_hash[:7]}")
-
-                # Stop the old server gracefully
-                print("🛑 Stopping server...")
+                log.info("Update detected! Local: %s Remote: %s", local_hash[:7], remote_hash[:7])
+                log.info("Stopping server...")
                 current_process.terminate()
                 try:
                     current_process.wait(timeout=10)
                 except subprocess.TimeoutExpired:
-                    print("Server did not stop gracefully. Forcing kill.")
+                    log.warning("Force killing server.")
                     current_process.kill()
 
-                # Update code
                 pull_changes()
-
-                # Restart
                 current_process = start_server()
-            
+
             time.sleep(CHECK_INTERVAL)
 
         except KeyboardInterrupt:
-            print("\n👋 Shutting down...")
+            log.info("Shutting down...")
             current_process.terminate()
             break
         except Exception as e:
-            print(f"\n❌ An error occurred in the supervisor loop: {e}")
-            time.sleep(CHECK_INTERVAL) # Wait before retrying
+            log.error("Supervisor error: %s", e)
+            time.sleep(CHECK_INTERVAL)
+
 
 if __name__ == "__main__":
     main()

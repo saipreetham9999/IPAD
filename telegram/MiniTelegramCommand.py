@@ -1,12 +1,12 @@
 from core.AraService import AraService
-from bus.JoBus import JoBus
-from telegram.MinniTelegramBot import MiniTelegramBot
-from children.AraChildManager import AraChildManager
+from bus.JoLogger import get_logger
+
+log = get_logger("TelegramCommand")
 
 
 class MiniTelegramCommand(AraService):
 
-    def __init__(self, bus: JoBus, telegram_bot: MiniTelegramBot, child_manager: AraChildManager):
+    def __init__(self, bus, telegram_bot, child_manager):
         self.bus = bus
         self.telegram_bot = telegram_bot
         self.child_manager = child_manager
@@ -16,21 +16,21 @@ class MiniTelegramCommand(AraService):
         if self._status == "running":
             return
         self._status = "running"
-        print("[MiniTelegramCommand] Started.")
+        log.info("Started.")
         self.bus.subscribe("telegram.command", self._handle_command)
-        self.bus.subscribe("session.created", self._on_child_connected)
-        self.bus.subscribe("child.disconnected", self._on_child_disconnected)
+        # Alerts only — no connect/disconnect noise to Telegram
+        self.bus.subscribe("alert.triggered", self._on_alert)
 
     def stop(self):
         self._status = "stopped"
-        print("[MiniTelegramCommand] Stopped.")
+        log.info("Stopped.")
 
     def status(self):
         return self._status
 
-    # ── Telegram commands ─────────────────────────────────────────────
+    # -- Telegram commands -----------------------------------------------
     def _handle_command(self, command_text: str):
-        print(f"[MiniTelegramCommand] Command: {command_text}")
+        log.debug("Command: %s", command_text)
         command = command_text.strip().lower()
 
         if command == "/status":
@@ -42,30 +42,20 @@ class MiniTelegramCommand(AraService):
         else:
             self.telegram_bot.send_message(f"Unknown command: {command_text}")
 
-    # ── Child events → Telegram ───────────────────────────────────────
-    def _on_child_connected(self, data: dict):
-        device_name = data.get("device_name", "Unknown")
-        device_type = data.get("device_type", "Unknown")
-        self.telegram_bot.send_message(
-            f"🟢 {device_name} connected\n"
-            f"Type: {device_type}"
-        )
+    # -- Alerts only — per spec ------------------------------------------
+    def _on_alert(self, data: dict):
+        source = data.get("source", "unknown")
+        message = data.get("message", "Alert triggered")
+        self.telegram_bot.send_message(f"ALERT [{source}]: {message}")
+        log.info("Alert sent to Telegram: %s", message[:60])
 
-    def _on_child_disconnected(self, data: dict):
-        device_name = data.get("device_name", "Unknown")
-        reason = data.get("reason", "unknown")
-        self.telegram_bot.send_message(
-            f"🔴 {device_name} disconnected\n"
-            f"Reason: {reason}"
-        )
-
-    # ── Status report ─────────────────────────────────────────────────
+    # -- Status report ---------------------------------------------------
     def _send_status_report(self):
         children = self.child_manager.get_all()
         count = len(children)
 
-        report = "🧠 Brain Status: Online\n"
-        report += f"🔗 Connected Children: {count}\n"
+        report = "Brain Status: Online\n"
+        report += f"Connected Children: {count}\n"
 
         if count > 0:
             report += "\nActive Devices:\n"
