@@ -121,11 +121,9 @@ def report():
         return jsonify({"status": "error", "reason": "no JSON body"}), 400
 
     device_name = data.get("device_name", "unknown")
-    log.info("Report received from %s", device_name)
     
     brain = get_brain()
     brain.bus.publish("child.report.received", data)
-    log.info("Report published to bus %s", data)
     return jsonify({"status": "received"}), 200
 
 

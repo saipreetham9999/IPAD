@@ -14,7 +14,9 @@ class SaiModelStore(AraService):
     
     # Vision Model (Multimodal)
     MODEL_VISION = "google/gemini-2.0-flash-lite-preview-02-05:free"
+    MODEL_SOURCEFUL_VISION = "sourceful/riverflow-v2-fast-preview"
     MODEL_FREE_SEARCH = "openrouter/free"
+
 
     # Chat Models
     MODEL_TRINITY = "arcee-ai/trinity-large-preview:free"
