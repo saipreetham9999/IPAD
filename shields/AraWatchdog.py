@@ -6,7 +6,7 @@ from bus.JoLogger import get_logger
 log = get_logger("Watchdog")
 
 WATCHDOG_INTERVAL = 60  # seconds between watchdog checks
-STUCK_THRESHOLD = 120   # if no bus activity for this long, something is wrong
+STUCK_THRESHOLD = 3600   # if no bus activity for this long, something is wrong
 
 
 class AraWatchdog(AraService):
