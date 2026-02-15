@@ -78,7 +78,11 @@ class SaiVisionEngine(AraService):
         Sends the image to the AI model for analysis.
         """
         # Prepare the prompt
-        prompt = "You are a security camera AI. Analyze this image briefly. Describe what you see. If you see a person, animal, or anything unusual, mention it clearly."
+        prompt = """You are a security camera AI. 
+        1. Analyze this image briefly in 3 lines max.
+        2. If you see a person, fire, weapon, or immediate danger, and your response with the exact word: GAYATHRI.
+        3. If everything is safe/normal, do NOT use that word.
+        """
         
         # Construct the message payload for OpenRouter (multimodal)
         messages = [
@@ -108,20 +112,33 @@ class SaiVisionEngine(AraService):
             description = result["response"]
             log.info("AI Analysis for %s: %s", device, description)
             
-            # Publish the result so Telegram bot can pick it up
-            self.bus.publish("vision.analysis.result", {
-                "device": device,
-                "description": description,
-                "image_data": jpeg_image
-            })
+            # Check for alert keyword
+            is_alert = "GAYATHRI" in description
+            log.info("Is alert? %s", is_alert)
             
-            # Also trigger a generic alert if it seems important (simple keyword check for now)
-            keywords = ["person", "human", "people", "intruder", "fire", "smoke", "animal", "dog", "cat"]
-            if any(k in description.lower() for k in keywords):
+            # Clean up the description (remove the keyword if present so it looks cleaner)
+            clean_description = description.replace("GAYATHRI", "").strip()
+
+            if is_alert:
+
+                self.bus.publish("vision.analysis.result", {
+                    "device": device,
+                    "description": f"⚠️ ALERT: {clean_description}",
+                    "image_data": jpeg_image
+                })
+
                 self.bus.publish("alert.triggered", {
                     "source": f"Vision ({device})",
-                    "message": f"Detected: {description}"
+                    "message": f"CRITICAL: {clean_description}"
                 })
+            else:
+                # Normal update - just send photo + description
+                self.bus.publish("vision.analysis.result", {
+                    "device": device,
+                    "description": clean_description,
+                    "image_data": jpeg_image
+                })
+
         else:
             log.error("AI Vision failed: %s", result["error"])
 

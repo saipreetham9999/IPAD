@@ -138,9 +138,6 @@ class Brain:
         self.fallback_handler.set_restart_map({
             s.__class__.__name__: s for s in self.services
         })
-        
-        # Subscribe to vision analysis results to send photos
-        self.bus.subscribe("vision.analysis.result", self.telegram_command._on_vision_result)
 
     def start(self):
         log.info("BRAIN BOOTING...")

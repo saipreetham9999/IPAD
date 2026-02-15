@@ -120,7 +120,6 @@ def report():
         log.warning("Report rejected: No JSON body")
         return jsonify({"status": "error", "reason": "no JSON body"}), 400
 
-    device_name = data.get("device_name", "unknown")
     
     brain = get_brain()
     brain.bus.publish("child.report.received", data)

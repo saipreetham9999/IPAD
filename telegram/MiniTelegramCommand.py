@@ -43,12 +43,10 @@ class MiniTelegramCommand(AraService):
         """Handle incoming telegram message"""
 
         text = data.get("text", "")
-        # log.info("Text %s", text) # Removed to prevent logging large payloads
         user_id = data.get("user_id")
         username = data.get("username", "unknown")
         chat_id = data.get("chat_id")
         if not text or not user_id or not chat_id:
-            # log.warning("Invalid message data")
             return
 
         if text.startswith("/"):
@@ -111,6 +109,10 @@ class MiniTelegramCommand(AraService):
         """Handle alerts"""
         source = data.get("source", "unknown")
         message = data.get("message", "Alert triggered")
+
+        if source.startswith("Vision"):
+            return
+
         self.telegram_bot.send_message(f"ALERT [{source}]: {message}")
 
     def _on_vision_result(self, data: dict):
