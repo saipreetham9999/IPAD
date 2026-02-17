@@ -11,7 +11,6 @@ def create_app():
     app = Flask(__name__, template_folder='./templates')
     app.register_blueprint(main_bp)
 
-    log.info("Instantiating and starting Brain...")
     app.brain = Brain()
     app.brain.start()
     log.info("Brain started and attached to app.")

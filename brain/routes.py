@@ -14,18 +14,23 @@ def get_brain():
 def index():
     brain = get_brain()
     children = brain.connection_manager.get_all()
-    return jsonify({
+
+    response = {
         "brain": "online",
         "children_connected": len(children),
         "children": list(children.keys())
-    })
+    }
+
+    log.info("Index requested → responding with %s", response)
+    return jsonify(response)
 
 
 @bp.route("/api/status", methods=["GET"])
 def status():
     brain = get_brain()
     children = brain.connection_manager.get_all()
-    return jsonify({
+
+    response = {
         "status": "online",
         "children": [
             {
@@ -35,44 +40,54 @@ def status():
             }
             for c in children.values()
         ]
-    })
+    }
+
+    log.info("Status requested → %d children returned", len(response["children"]))
+    return jsonify(response)
 
 
 # ── new HTTP connection endpoints ─────────────────────────────────────
 @bp.route("/api/connect", methods=["POST"])
 def connect():
-    """Child sends identity. Brain registers it."""
     identity = request.get_json()
+
     if not identity:
-        log.warning("Connect request rejected: No JSON body")
+        log.warning("Connect rejected: No JSON body")
         return jsonify({"status": "rejected", "reason": "no JSON body"}), 400
 
-    log.info("Connect request received from: %s", identity.get("device_name", "unknown"))
+    log.info("Connect request received: %s", identity)
+
     brain = get_brain()
     result = brain.connection_manager.handle_connect(identity)
 
+    log.info("Connect response for %s → %s",
+             identity.get("device_name"),
+             result)
+
     if result["status"] == "rejected":
-        log.warning("Connect request rejected for %s: %s", identity.get("device_name"), result.get("reason"))
         return jsonify(result), 400
 
-    log.info("Connect request accepted for %s", identity.get("device_name"))
     return jsonify(result), 200
 
 
 @bp.route("/api/heartbeat", methods=["POST"])
 def heartbeat():
-    """Child sends heartbeat every 5 seconds to stay alive."""
     data = request.get_json()
+
     if not data or "device_name" not in data:
         log.warning("Heartbeat rejected: device_name required")
         return jsonify({"status": "error", "reason": "device_name required"}), 400
 
-    # log.debug("Heartbeat received from %s", data["device_name"])
+    log.info("Heartbeat received from %s", data["device_name"])
+
     brain = get_brain()
     result = brain.connection_manager.handle_heartbeat(data["device_name"])
 
+    log.info("Heartbeat response to %s → %s",
+             data["device_name"],
+             result)
+
     if result["status"] == "unknown":
-        log.warning("Heartbeat from unknown device: %s", data["device_name"])
         return jsonify(result), 404
 
     return jsonify(result), 200
@@ -80,67 +95,84 @@ def heartbeat():
 
 @bp.route("/api/disconnect", methods=["POST"])
 def disconnect():
-    """Child cleanly disconnects."""
     data = request.get_json()
+
     if not data or "device_name" not in data:
         log.warning("Disconnect rejected: device_name required")
         return jsonify({"status": "error", "reason": "device_name required"}), 400
 
-    log.info("Disconnect request from %s", data["device_name"])
+    log.info("Disconnect request received: %s", data)
+
     brain = get_brain()
     brain.connection_manager.handle_disconnect(data["device_name"])
-    return jsonify({"status": "disconnected"}), 200
+
+    response = {"status": "disconnected"}
+    log.info("Disconnect response → %s", response)
+
+    return jsonify(response), 200
 
 
 @bp.route("/api/events", methods=["GET"])
 def events():
-    """Child polls for pending events/alerts."""
     device_name = request.args.get("device_name")
+
     if not device_name:
         log.warning("Events poll rejected: device_name required")
         return jsonify({"status": "error", "reason": "device_name required"}), 400
 
+    log.info("Events poll requested by %s", device_name)
+
     brain = get_brain()
     pending = brain.message_router.pop_events(device_name)
-    
-    if pending:
-        log.info("Sending %d events to %s", len(pending), device_name)
-        
-    return jsonify({
+
+    log.info("Sending %d events to %s → %s",
+             len(pending),
+             device_name,
+             pending)
+
+    response = {
         "status": "ok",
         "events": pending
-    }), 200
+    }
+
+    return jsonify(response), 200
 
 
 @bp.route("/api/report", methods=["POST"])
 def report():
-    """Child sends data report (camera frame, sensor data etc)."""
     data = request.get_json()
+
     if not data:
         log.warning("Report rejected: No JSON body")
         return jsonify({"status": "error", "reason": "no JSON body"}), 400
 
-    
+    log.info("Report received → %s", data)
+
     brain = get_brain()
     brain.bus.publish("child.report.received", data)
-    return jsonify({"status": "received"}), 200
+
+    response = {"status": "received"}
+    log.info("Report response → %s", response)
+
+    return jsonify(response), 200
 
 
 @bp.route("/api/health", methods=["GET"])
 def health():
-    """Returns health status of all services."""
     log.debug("Health check requested")
+
     brain = get_brain()
     report = brain.health_checker.get_report()
     all_healthy = all(s == "running" for s in report.values())
-    
-    status_code = 200 if all_healthy else 503
-    if not all_healthy:
-        log.warning("Health check failed: %s", report)
-        
-    return jsonify({
+
+    response = {
         "status": "healthy" if all_healthy else "degraded",
         "services": report,
         "ai_tier": brain.tier_manager.get_tier(),
         "ai_processor": brain.tier_manager.get_processor(),
-    }), status_code
+    }
+
+    log.info("Health response → %s", response)
+
+    status_code = 200 if all_healthy else 503
+    return jsonify(response), status_code
