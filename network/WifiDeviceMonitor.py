@@ -181,7 +181,7 @@ class WifiDeviceMonitor(AraService):
             except Exception as e:
                 log.error("Error in monitor loop: %s", e, exc_info=True)
             
-            time.sleep(20)
+            time.sleep(5)
 
     def _handle_status_request(self, data: dict):
         log.info("On-demand Wi-Fi status request received.")
