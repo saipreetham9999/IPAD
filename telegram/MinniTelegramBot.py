@@ -16,6 +16,9 @@ log = get_logger("TelegramBot")
 
 class MiniTelegramBot(AraService):
 
+    # --- Static Group ID for Broadcasting ---
+    BROADCAST_GROUP_ID = "7228944872"
+
     def __init__(self, settings, bus):
         self.settings = settings
         self.bus = bus
@@ -54,7 +57,7 @@ class MiniTelegramBot(AraService):
 
     def _send_message_worker(self, text):
         token = self.settings.TELEGRAM_TOKEN
-        chat_id = self.settings.TELEGRAM_CHAT_ID
+        chat_id = self.BROADCAST_GROUP_ID
         url = f"https://api.telegram.org/bot{token}/sendMessage"
         try:
             response = requests.post(url, json={
@@ -89,7 +92,7 @@ class MiniTelegramBot(AraService):
     def _send_photo_worker(self, photo_data: str, caption: str):
         """Worker to upload and send photo"""
         token = self.settings.TELEGRAM_TOKEN
-        chat_id = self.settings.TELEGRAM_CHAT_ID
+        chat_id = self.BROADCAST_GROUP_ID
         url = f"https://api.telegram.org/bot{token}/sendPhoto"
         
         try:
@@ -194,12 +197,12 @@ class MiniTelegramBot(AraService):
                 "text": text
             }, timeout=10)
             response.raise_for_status()
-            log.debug("Message sent to chat %d: '%s'", chat_id, text[:60])
+            # log.debug("Message sent to chat %s: '%s'", chat_id, text[:60]) # Removed to prevent errors
         except requests.exceptions.HTTPError as e:
-            log.error("HTTP error sending to %d: %s", chat_id, e)
+            log.error("HTTP error sending to %s: %s", chat_id, e)
         except requests.exceptions.ConnectionError as e:
-            log.error("Connection error sending to %d: %s", chat_id, e)
+            log.error("Connection error sending to %s: %s", chat_id, e)
         except requests.exceptions.Timeout:
-            log.error("Timeout sending to chat %d", chat_id)
+            log.error("Timeout sending to chat %s", chat_id)
         except Exception as e:
-            log.error("Unexpected error sending to %d: %s", chat_id, e)
+            log.error("Unexpected error sending to %s: %s", chat_id, e)

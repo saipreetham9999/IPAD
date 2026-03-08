@@ -125,8 +125,7 @@ class MiniTelegramCommand(AraService):
         
         if image_data:
             self.telegram_bot.send_photo(image_data, caption)
-        else:
-            self.telegram_bot.send_message(caption)
+        else:            self.telegram_bot.send_message(caption)
 
     def _send_status_report(self):
         """Send brain status"""

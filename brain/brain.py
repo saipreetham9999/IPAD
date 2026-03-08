@@ -10,6 +10,7 @@ from sai.SaiChatSessionManager import SaiChatSessionManager
 from sai.SaiOpenRouterClient import SaiOpenRouterClient
 from telegram.MiniTelegramCommand import MiniTelegramCommand
 from telegram.MinniTelegramBot import MiniTelegramBot
+from network.WifiDeviceMonitor import WifiDeviceMonitor
 
 # Phase 5 — AI stubs
 from sai.SaiVisionEngine import SaiVisionEngine
@@ -45,107 +46,113 @@ class Brain:
         )
 
         # Phase 2 — Spine
-        self.connection_manager = AraConnectionManager(bus=self.bus)
-        self.session_manager = AraSessionManager(bus=self.bus)
-        self.child_manager = AraChildManager(bus=self.bus)
+        # self.connection_manager = AraConnectionManager(bus=self.bus)
+        # self.session_manager = AraSessionManager(bus=self.bus)
+        # self.child_manager = AraChildManager(bus=self.bus)
+        self.wifi_monitor = WifiDeviceMonitor(
+            bus=self.bus,
+            telegram_bot=self.telegram_bot,
+            config_file="network_devices.json"
+        )
 
         # Phase 3 — Telegram commands + alerts only
         self.telegram_command = MiniTelegramCommand(
             bus=self.bus,
             telegram_bot=self.telegram_bot,
-            child_manager=self.child_manager
+            child_manager=None # Disabled child_manager
         )
 
         # Phase 4 — Message routing to children
-        self.message_router = MiniMessageRouter(bus=self.bus)
+        # self.message_router = MiniMessageRouter(bus=self.bus)
 
         # Phase 5 — AI (stubs)
-        self.model_store = SaiModelStore()
-        self.alert_rules = SaiAlertRules(bus=self.bus)
-        self.tier_manager = SaiTierManager(bus=self.bus)
-        self.vision_engine = SaiVisionEngine(
-            bus=self.bus,
-            tier_manager=self.tier_manager,
-            alert_rules=self.alert_rules
-        )
-        self.openrouter_client = SaiOpenRouterClient(
-            api_key=self.settings.OPENROUTER_API_KEY
-        )
-        self.chat_session_manager = SaiChatSessionManager(
-            bus=self.bus,
-            max_users=20,  # Max 20 concurrent users
-            idle_timeout_seconds=1800  # 30 minutes
-        )
-        self.chat_orchestrator = SaiChatOrchestrator(
-            bus=self.bus,
-            session_manager=self.chat_session_manager,
-            openrouter_client=self.openrouter_client,
-            telegram_bot=self.telegram_bot,
-            settings=self.settings
-        )
+        # self.model_store = SaiModelStore()
+        # self.alert_rules = SaiAlertRules(bus=self.bus)
+        # self.tier_manager = SaiTierManager(bus=self.bus)
+        # self.vision_engine = SaiVisionEngine(
+        #     bus=self.bus,
+        #     tier_manager=self.tier_manager,
+        #     alert_rules=self.alert_rules
+        # )
+        # self.openrouter_client = SaiOpenRouterClient(
+        #     api_key=self.settings.OPENROUTER_API_KEY
+        # )
+        # self.chat_session_manager = SaiChatSessionManager(
+        #     bus=self.bus,
+        #     max_users=20,  # Max 20 concurrent users
+        #     idle_timeout_seconds=1800  # 30 minutes
+        # )
+        # self.chat_orchestrator = SaiChatOrchestrator(
+        #     bus=self.bus,
+        #     session_manager=self.chat_session_manager,
+        #     openrouter_client=self.openrouter_client,
+        #     telegram_bot=self.telegram_bot,
+        #     settings=self.settings
+        # )
 
         # Phase 6 — Memory
-        self.event_logger = JoEventLogger(bus=self.bus)
-        self.snapshot_manager = SaiSnapshotManager(bus=self.bus)
+        # self.event_logger = JoEventLogger(bus=self.bus)
+        # self.snapshot_manager = SaiSnapshotManager(bus=self.bus)
 
         # Phase 7 — Resilience
-        self.reconnect_manager = AraReconnectManager(bus=self.bus)
-        self.health_checker = AraHealthChecker(bus=self.bus)
-        self.fallback_handler = AraFallbackHandler(
-            bus=self.bus,
-            telegram_bot=self.telegram_bot
-        )
+        # self.reconnect_manager = AraReconnectManager(bus=self.bus)
+        # self.health_checker = AraHealthChecker(bus=self.bus)
+        # self.fallback_handler = AraFallbackHandler(
+        #     bus=self.bus,
+        #     telegram_bot=self.telegram_bot
+        # )
 
         # Phase 8 — Shields
-        self.watchdog = AraWatchdog(bus=self.bus, telegram_bot=self.telegram_bot)
+        # self.watchdog = AraWatchdog(bus=self.bus, telegram_bot=self.telegram_bot)
 
         # Boot order: core -> telegram -> routing -> AI -> memory -> resilience -> shields
         self.services = [
             self.telegram_bot,
-            self.connection_manager,
-            self.session_manager,
-            self.child_manager,
+            # self.connection_manager,
+            # self.session_manager,
+            # self.child_manager,
+            self.wifi_monitor,
             self.telegram_command,
-            self.message_router,
+            # self.message_router,
 
-            # Phase 5 — AI
-            self.model_store,
-            self.alert_rules,
-            self.tier_manager,
-            self.vision_engine,
+            # # Phase 5 — AI
+            # self.model_store,
+            # self.alert_rules,
+            # self.tier_manager,
+            # self.vision_engine,
 
-            # Phase 5 — Chat (NEW)
-            self.chat_session_manager,
-            self.chat_orchestrator,
+            # # Phase 5 — Chat (NEW)
+            # self.chat_session_manager,
+            # self.chat_orchestrator,
 
-            # Phase 6 — Memory
-            self.event_logger,
-            self.snapshot_manager,
+            # # Phase 6 — Memory
+            # self.event_logger,
+            # self.snapshot_manager,
 
-            # Phase 7 — Resilience
-            self.reconnect_manager,
-            self.health_checker,
-            self.fallback_handler,
+            # # Phase 7 — Resilience
+            # self.reconnect_manager,
+            # self.health_checker,
+            # self.fallback_handler,
 
-            # Phase 8 — Shields
-            self.watchdog,
+            # # Phase 8 — Shields
+            # self.watchdog,
         ]
 
         # Wire health checker with the full service list
-        self.health_checker.set_services(self.services)
+        # self.health_checker.set_services(self.services)
 
         # Wire fallback handler with restartable services
-        self.fallback_handler.set_restart_map({
-            s.__class__.__name__: s for s in self.services
-        })
+        # self.fallback_handler.set_restart_map({
+        #     s.__class__.__name__: s for s in self.services
+        # })
 
     def start(self):
-        log.info("BRAIN BOOTING...")
+        log.info("BRAIN BOOTING (Lite Mode)...")
         for service in self.services:
             service.start()
             log.info("  %s started", service.__class__.__name__)
         log.info("BRAIN ONLINE — %d services running", len(self.services))
-        self.telegram_bot.send_message("Brain Online — all systems ready")
+        self.telegram_bot.send_message("Brain Online — Lite Mode (Wi-Fi & Telegram only)")
 
     def stop(self):
         log.info("BRAIN SHUTTING DOWN...")
