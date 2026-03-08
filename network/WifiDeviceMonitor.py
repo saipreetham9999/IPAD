@@ -1,34 +1,28 @@
-import datetime
 import threading
 import time
 import json
 import subprocess
-import re
 import socket
+from datetime import datetime
 from core.AraService import AraService
 from bus.JoLogger import get_logger
 from telegram.MinniTelegramBot import MiniTelegramBot
 
 log = get_logger("WifiMonitor")
 
-def get_network_range():
-    """Determines the local network range (e.g., 192.168.1.0/24)."""
+def get_network_base():
+    """Determines the local network base (e.g., 192.168.0)."""
     try:
         with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as s:
-            # Doesn't need to be reachable
             s.connect(("8.8.8.8", 80))
             ip_address = s.getsockname()[0]
-            # Assumes a /24 subnet, which is standard for home networks
-            network_base = ".".join(ip_address.split('.')[:-1])
-            return f"{network_base}.0/24"
+            return ".".join(ip_address.split('.')[:-1])
     except Exception:
-        # Fallback for environments where the above fails
-        return "192.168.0.0/24"
+        return "192.168.0"
 
 class WifiDeviceMonitor(AraService):
     """
-    Monitors the local network using nmap to discover online devices and reports
-    status changes for specific IPs.
+    Monitors the local network using fping to discover online devices on an Ubuntu system.
     """
 
     WIFI_STATUS_GROUP_ID = "-1003893407216"
@@ -44,12 +38,12 @@ class WifiDeviceMonitor(AraService):
         self.device_status = {}
         self.event_log = []
         self.last_report_date = None
-        self.network_range = get_network_range()
+        self.network_base = get_network_base()
 
     def start(self):
         if self._status == "running": return
-        if not self._is_nmap_installed():
-            log.error("nmap is not installed or not in system PATH. Please install it from https://nmap.org. Service not starting.")
+        if not self._is_fping_installed():
+            log.error("fping is not installed. Please run 'sudo apt-get install fping'. Service not starting.")
             return
         if not self._load_devices(): return
             
@@ -65,7 +59,7 @@ class WifiDeviceMonitor(AraService):
         self._thread.start()
         
         self.bus.subscribe("wifi.status_request", self._handle_status_request)
-        log.info(f"Started. Monitoring for devices on network {self.network_range}. Scan interval: 20s")
+        log.info(f"Started. Monitoring for devices on network {self.network_base}.x. Scan interval: 20s")
 
     def stop(self):
         self._running = False
@@ -76,10 +70,10 @@ class WifiDeviceMonitor(AraService):
     def status(self):
         return self._status
 
-    def _is_nmap_installed(self):
-        """Checks if nmap is installed and available in the system's PATH."""
+    def _is_fping_installed(self):
+        """Checks if fping is installed and available in the system's PATH."""
         try:
-            subprocess.run(["nmap", "-v"], capture_output=True, check=True)
+            subprocess.run(["fping", "-v"], capture_output=True, check=True)
             return True
         except (subprocess.CalledProcessError, FileNotFoundError):
             return False
@@ -94,24 +88,22 @@ class WifiDeviceMonitor(AraService):
             return False
 
     def _get_online_ips(self) -> set:
-        """Scans the network with nmap and returns a set of online IP addresses."""
-        log.info(f"Scanning network {self.network_range} with nmap...")
+        """Scans the network with fping and returns a set of online IP addresses."""
+        log.info(f"Scanning network {self.network_base}.x with fping...")
         try:
-            # -sn: Ping Scan - disables port scan
-            # -T4: Aggressive timing template for faster scans
-            command = ["nmap", "-sn", "-T4", self.network_range]
-            result = subprocess.run(command, capture_output=True, text=True, timeout=60)
+            # -a: show alive hosts
+            # -g: generate target list from a range
+            command = ["fping", "-a", "-g", f"{self.network_base}.1", f"{self.network_base}.254"]
+            result = subprocess.run(command, capture_output=True, text=True, timeout=15)
             
-            # Regex to find all IP addresses in the nmap output
-            ip_addresses = re.findall(r"(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})", result.stdout)
+            # fping prints alive hosts to stdout, one per line
+            online_ips = set(result.stdout.strip().split('\n'))
+            if '' in online_ips: online_ips.remove('') # Remove empty string if present
             
-            # The first IP found is usually the gateway, the rest are hosts.
-            # We convert to a set for efficient lookup.
-            online_ips = set(ip_addresses[1:])
-            log.info(f"nmap scan found {len(online_ips)} online hosts.")
+            log.info(f"fping scan found {len(online_ips)} online hosts.")
             return online_ips
         except (subprocess.TimeoutExpired, FileNotFoundError):
-            log.error(f"nmap scan failed or timed out.")
+            log.error(f"fping scan failed or timed out.")
             return set()
 
     def _log_event(self, device_name: str, status: str):

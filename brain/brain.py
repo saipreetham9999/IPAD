@@ -148,11 +148,27 @@ class Brain:
 
     def start(self):
         log.info("BRAIN BOOTING (Lite Mode)...")
+        
+        started_services = []
         for service in self.services:
-            service.start()
-            log.info("  %s started", service.__class__.__name__)
-        log.info("BRAIN ONLINE — %d services running", len(self.services))
-        self.telegram_bot.send_message("Brain Online — Lite Mode (Wi-Fi & Telegram only)")
+            try:
+                service.start()
+                log.info("  %s started", service.__class__.__name__)
+                started_services.append(service)
+            except Exception as e:
+                log.error("Failed to start service %s: %s", service.__class__.__name__, e)
+
+        log.info("BRAIN ONLINE — %d services running", len(started_services))
+        
+        # Build the detailed startup message
+        message = "--- Brain Online ---\n\n"
+        message += f"Mode: Lite\n"
+        message += f"Services Started: {len(started_services)}\n\n"
+        
+        for service in started_services:
+            message += f"- {service.__class__.__name__}\n"
+            
+        self.telegram_bot.send_message(message)
 
     def stop(self):
         log.info("BRAIN SHUTTING DOWN...")
