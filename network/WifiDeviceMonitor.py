@@ -3,7 +3,7 @@ import time
 import json
 import subprocess
 import socket
-from datetime import datetime
+from datetime import datetime, timedelta
 from core.AraService import AraService
 from bus.JoLogger import get_logger
 from telegram.MinniTelegramBot import MiniTelegramBot
@@ -20,9 +20,26 @@ def get_network_base():
     except Exception:
         return "192.168.0"
 
+def format_duration(duration: timedelta) -> str:
+    """Formats a timedelta object into a human-readable string like '2h 15m 10s'."""
+    parts = []
+    total_seconds = int(duration.total_seconds())
+    
+    days, remainder = divmod(total_seconds, 86400)
+    hours, remainder = divmod(remainder, 3600)
+    minutes, seconds = divmod(remainder, 60)
+
+    if days > 0: parts.append(f"{days}d")
+    if hours > 0: parts.append(f"{hours}h")
+    if minutes > 0: parts.append(f"{minutes}m")
+    if seconds > 0 or not parts: parts.append(f"{seconds}s")
+    
+    return " ".join(parts)
+
 class WifiDeviceMonitor(AraService):
     """
-    Monitors the local network using fping to discover online devices on an Ubuntu system.
+    Monitors the local network, sends immediate alerts with duration tracking,
+    and provides a daily summary report.
     """
 
     WIFI_STATUS_GROUP_ID = "-1003893407216"
@@ -36,6 +53,7 @@ class WifiDeviceMonitor(AraService):
         self._thread = None
         self.devices = []
         self.device_status = {}
+        self.last_change_timestamp = {}
         self.event_log = []
         self.last_report_date = None
         self.network_base = get_network_base()
@@ -50,16 +68,18 @@ class WifiDeviceMonitor(AraService):
         self._status = "running"
         self._running = True
         
+        now = datetime.now()
         for device in self.devices:
             self.device_status[device['name']] = "unknown"
+            self.last_change_timestamp[device['name']] = now
             
-        self.last_report_date = datetime.now().date()
+        self.last_report_date = now.date()
         
         self._thread = threading.Thread(target=self._monitor_loop, daemon=True)
         self._thread.start()
         
         self.bus.subscribe("wifi.status_request", self._handle_status_request)
-        log.info(f"Started. Monitoring for devices on network {self.network_base}.x. Scan interval: 20s")
+        log.info(f"Started. Monitoring {len(self.devices)} devices on network {self.network_base}.x. Scan interval: 20s")
 
     def stop(self):
         self._running = False
@@ -71,7 +91,6 @@ class WifiDeviceMonitor(AraService):
         return self._status
 
     def _is_fping_installed(self):
-        """Checks if fping is installed and available in the system's PATH."""
         try:
             subprocess.run(["fping", "-v"], capture_output=True, check=True)
             return True
@@ -88,28 +107,27 @@ class WifiDeviceMonitor(AraService):
             return False
 
     def _get_online_ips(self) -> set:
-        """Scans the network with fping and returns a set of online IP addresses."""
         log.info(f"Scanning network {self.network_base}.x with fping...")
         try:
-            # -a: show alive hosts
-            # -g: generate target list from a range
             command = ["fping", "-a", "-g", f"{self.network_base}.1", f"{self.network_base}.254"]
             result = subprocess.run(command, capture_output=True, text=True, timeout=15)
-            
-            # fping prints alive hosts to stdout, one per line
             online_ips = set(result.stdout.strip().split('\n'))
-            if '' in online_ips: online_ips.remove('') # Remove empty string if present
-            
+            if '' in online_ips: online_ips.remove('')
             log.info(f"fping scan found {len(online_ips)} online hosts.")
             return online_ips
         except (subprocess.TimeoutExpired, FileNotFoundError):
             log.error(f"fping scan failed or timed out.")
             return set()
 
-    def _log_event(self, device_name: str, status: str):
+    def _log_event(self, device_name: str, status: str, duration_str: str):
         timestamp = datetime.now()
-        self.event_log.append({"timestamp": timestamp, "device": device_name, "status": status})
-        log.info(f"Logged event: {device_name} is {status}")
+        self.event_log.append({
+            "timestamp": timestamp, 
+            "device": device_name, 
+            "status": status,
+            "duration": duration_str
+        })
+        log.info(f"Logged event: {device_name} is {status} (was {duration_str})")
 
     def _send_daily_report(self):
         log.info("Generating daily Wi-Fi status report.")
@@ -119,7 +137,7 @@ class WifiDeviceMonitor(AraService):
         else:
             for event in self.event_log:
                 ts = event['timestamp'].strftime('%H:%M:%S')
-                report += f"[{ts}] {event['device']} status changed to: {event['status']}\n"
+                report += f"[{ts}] {event['device']} became {event['status']} (after {event['duration']})\n"
         
         self.telegram_bot.send_message_to_chat(self.WIFI_STATUS_GROUP_ID, report)
         self.event_log.clear()
@@ -143,14 +161,19 @@ class WifiDeviceMonitor(AraService):
                     previous_status = self.device_status.get(name)
                     
                     if current_status != previous_status:
+                        now = datetime.now()
+                        duration = now - self.last_change_timestamp[name]
+                        duration_str = format_duration(duration)
+                        
                         self.device_status[name] = current_status
-                        self._log_event(name, current_status)
+                        self.last_change_timestamp[name] = now
+                        self._log_event(name, current_status, duration_str)
                         
                         message = ""
                         if current_status == "Online":
-                            message = f"Network Device Connected: {name} ({ip})"
+                            message = f"Device Connected: {name} ({ip})\n(Was offline for {duration_str})"
                         elif previous_status == "Online":
-                            message = f"Network Device Disconnected: {name} ({ip})"
+                            message = f"Device Disconnected: {name} ({ip})\n(Was online for {duration_str})"
                         
                         if message:
                             self.telegram_bot.send_message_to_chat(self.WIFI_STATUS_GROUP_ID, message)
@@ -166,6 +189,12 @@ class WifiDeviceMonitor(AraService):
         for device in self.devices:
             name, ip = device["name"], device["ip"]
             status = self.device_status.get(name, "Unknown")
-            report += f"Device: {name}\n  IP Address: {ip}\n  Status: {status}\n\n"
+            last_change = self.last_change_timestamp.get(name)
+            
+            report += f"Device: {name}\n  IP Address: {ip}\n  Status: {status}\n"
+            if last_change and status != "unknown":
+                duration = datetime.now() - last_change
+                report += f"  In current state for: {format_duration(duration)}\n"
+            report += "\n"
         
         self.telegram_bot.send_message_to_chat(self.WIFI_STATUS_GROUP_ID, report)
