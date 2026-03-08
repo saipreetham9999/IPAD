@@ -73,10 +73,15 @@ class MiniTelegramCommand(AraService):
 
     def _handle_command(self, command_text: str, user_id: int, username: str, chat_id: int):
         """Handle / commands"""
-        log.info("Command %s", command_text)
+        log.info("Command %s from @%s", command_text, username)
         command = command_text.strip().lower()
-        if command == "/status":
+        
+        if command == "/wifi_status":
+            self.bus.publish("wifi.status_request", {"chat_id": chat_id})
+            
+        elif command == "/status":
             self._send_status_report()
+            
         elif command == "/hello":
             self.telegram_bot.send_message_to_chat(
                 chat_id,
@@ -84,7 +89,10 @@ class MiniTelegramCommand(AraService):
             )
 
         elif command == "/children":
-            self._send_children_list(chat_id)
+            if self.child_manager:
+                self._send_children_list(chat_id)
+            else:
+                self.telegram_bot.send_message_to_chat(chat_id, "Child manager is disabled.")
 
         elif command.startswith("/chat_start"):
             self._handle_chat_start(user_id, username, chat_id)
@@ -125,10 +133,15 @@ class MiniTelegramCommand(AraService):
         
         if image_data:
             self.telegram_bot.send_photo(image_data, caption)
-        else:            self.telegram_bot.send_message(caption)
+        else:
+            self.telegram_bot.send_message(caption)
 
     def _send_status_report(self):
         """Send brain status"""
+        if not self.child_manager:
+            self.telegram_bot.send_message("Brain Status: Online (Lite Mode)")
+            return
+
         children = self.child_manager.get_all()
         count = len(children)
 

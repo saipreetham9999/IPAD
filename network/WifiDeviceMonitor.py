@@ -1,21 +1,36 @@
+import datetime
 import threading
 import time
 import json
-import os
-import platform
+import subprocess
+import re
+import socket
 from core.AraService import AraService
 from bus.JoLogger import get_logger
 from telegram.MinniTelegramBot import MiniTelegramBot
 
 log = get_logger("WifiMonitor")
 
+def get_network_range():
+    """Determines the local network range (e.g., 192.168.1.0/24)."""
+    try:
+        with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as s:
+            # Doesn't need to be reachable
+            s.connect(("8.8.8.8", 80))
+            ip_address = s.getsockname()[0]
+            # Assumes a /24 subnet, which is standard for home networks
+            network_base = ".".join(ip_address.split('.')[:-1])
+            return f"{network_base}.0/24"
+    except Exception:
+        # Fallback for environments where the above fails
+        return "192.168.0.0/24"
+
 class WifiDeviceMonitor(AraService):
     """
-    Monitors specific IP addresses on the network and reports their status changes
-    to a dedicated Telegram group.
+    Monitors the local network using nmap to discover online devices and reports
+    status changes for specific IPs.
     """
 
-    # --- Static Group ID for Wi-Fi Status Alerts ---
     WIFI_STATUS_GROUP_ID = "-1003893407216"
 
     def __init__(self, bus, telegram_bot: MiniTelegramBot, config_file: str):
@@ -27,93 +42,138 @@ class WifiDeviceMonitor(AraService):
         self._thread = None
         self.devices = []
         self.device_status = {}
+        self.event_log = []
+        self.last_report_date = None
+        self.network_range = get_network_range()
 
     def start(self):
-        if self._status == "running":
+        if self._status == "running": return
+        if not self._is_nmap_installed():
+            log.error("nmap is not installed or not in system PATH. Please install it from https://nmap.org. Service not starting.")
             return
-        
-        if self.WIFI_STATUS_GROUP_ID == "YOUR_WIFI_GROUP_ID_HERE":
-            log.warning("WIFI_STATUS_GROUP_ID is not set. Service will not start.")
-            return
-            
-        if not self._load_devices():
-            log.error("Could not load devices from config. Service not starting.")
-            return
+        if not self._load_devices(): return
             
         self._status = "running"
         self._running = True
         
-        # Initialize status for all devices
         for device in self.devices:
             self.device_status[device['name']] = "unknown"
             
+        self.last_report_date = datetime.now().date()
+        
         self._thread = threading.Thread(target=self._monitor_loop, daemon=True)
         self._thread.start()
-        log.info("Started. Monitoring %d devices. Scan interval: 15s", len(self.devices))
+        
+        self.bus.subscribe("wifi.status_request", self._handle_status_request)
+        log.info(f"Started. Monitoring for devices on network {self.network_range}. Scan interval: 20s")
 
     def stop(self):
         self._running = False
-        if self._thread:
-            self._thread.join(timeout=5)
+        if self._thread: self._thread.join(timeout=5)
         self._status = "stopped"
         log.info("Stopped.")
 
     def status(self):
         return self._status
 
+    def _is_nmap_installed(self):
+        """Checks if nmap is installed and available in the system's PATH."""
+        try:
+            subprocess.run(["nmap", "-v"], capture_output=True, check=True)
+            return True
+        except (subprocess.CalledProcessError, FileNotFoundError):
+            return False
+
     def _load_devices(self):
         try:
             with open(self.config_file, 'r') as f:
                 self.devices = json.load(f)
-            if not self.devices:
-                log.warning("Device config file is empty.")
-                return False
-            return True
-        except FileNotFoundError:
-            log.error("Network devices config file not found at %s", self.config_file)
-            return False
-        except json.JSONDecodeError:
-            log.error("Error decoding JSON from %s", self.config_file)
+            return bool(self.devices)
+        except (FileNotFoundError, json.JSONDecodeError) as e:
+            log.error("Failed to load network devices config: %s", e)
             return False
 
-    def _ping_device(self, ip: str) -> bool:
-        """
-        Pings an IP address to check if it's online.
-        Returns True if online, False otherwise.
-        """
-        param = "-n" if platform.system().lower() == "windows" else "-c"
-        command = ["ping", param, "1", ip]
+    def _get_online_ips(self) -> set:
+        """Scans the network with nmap and returns a set of online IP addresses."""
+        log.info(f"Scanning network {self.network_range} with nmap...")
+        try:
+            # -sn: Ping Scan - disables port scan
+            # -T4: Aggressive timing template for faster scans
+            command = ["nmap", "-sn", "-T4", self.network_range]
+            result = subprocess.run(command, capture_output=True, text=True, timeout=60)
+            
+            # Regex to find all IP addresses in the nmap output
+            ip_addresses = re.findall(r"(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})", result.stdout)
+            
+            # The first IP found is usually the gateway, the rest are hosts.
+            # We convert to a set for efficient lookup.
+            online_ips = set(ip_addresses[1:])
+            log.info(f"nmap scan found {len(online_ips)} online hosts.")
+            return online_ips
+        except (subprocess.TimeoutExpired, FileNotFoundError):
+            log.error(f"nmap scan failed or timed out.")
+            return set()
+
+    def _log_event(self, device_name: str, status: str):
+        timestamp = datetime.now()
+        self.event_log.append({"timestamp": timestamp, "device": device_name, "status": status})
+        log.info(f"Logged event: {device_name} is {status}")
+
+    def _send_daily_report(self):
+        log.info("Generating daily Wi-Fi status report.")
+        report = "--- Daily Wi-Fi Report ---\n\n"
+        if not self.event_log:
+            report += "No connection changes detected in the last 24 hours."
+        else:
+            for event in self.event_log:
+                ts = event['timestamp'].strftime('%H:%M:%S')
+                report += f"[{ts}] {event['device']} status changed to: {event['status']}\n"
         
-        # Use os.system for simplicity and to avoid subprocess complexities
-        # Redirect output to null to keep logs clean
-        response = os.system(f"{' '.join(command)} > {os.devnull} 2>&1")
-        return response == 0
+        self.telegram_bot.send_message_to_chat(self.WIFI_STATUS_GROUP_ID, report)
+        self.event_log.clear()
+        self.last_report_date = datetime.now().date()
+        log.info("Daily report sent and event log cleared.")
 
     def _monitor_loop(self):
         while self._running:
-            for device in self.devices:
-                name = device["name"]
-                ip = device["ip"]
-
-                is_online = self._ping_device(ip)
-                current_status = "online" if is_online else "offline"
-                previous_status = self.device_status.get(name)
-
-                if current_status != previous_status:
-                    self.device_status[name] = current_status
-                    log.info("Device '%s' status changed to %s", name, current_status)
-                    
-                    message = ""
-                    if current_status == "online":
-                        message = f"✅ Wi-Fi Device Connected: {name} ({ip})"
-                    else:
-                        # We only want to send the "disconnected" message if it was previously online
-                        if previous_status == "online":
-                            message = f"❌ Wi-Fi Device Disconnected: {name} ({ip})"
-                    
-                    if message:
-                        # Send to the dedicated Wi-Fi status group
-                        self.telegram_bot.send_message_to_chat(self.WIFI_STATUS_GROUP_ID, message)
+            now = datetime.now()
             
-            # Check every 15 seconds
-            time.sleep(15)
+            if now.date() > self.last_report_date:
+                self._send_daily_report()
+
+            try:
+                online_ips = self._get_online_ips()
+                
+                for device in self.devices:
+                    name, ip = device["name"], device["ip"]
+                    is_online = ip in online_ips
+                    current_status = "Online" if is_online else "Offline"
+                    previous_status = self.device_status.get(name)
+                    
+                    if current_status != previous_status:
+                        self.device_status[name] = current_status
+                        self._log_event(name, current_status)
+                        
+                        message = ""
+                        if current_status == "Online":
+                            message = f"Network Device Connected: {name} ({ip})"
+                        elif previous_status == "Online":
+                            message = f"Network Device Disconnected: {name} ({ip})"
+                        
+                        if message:
+                            self.telegram_bot.send_message_to_chat(self.WIFI_STATUS_GROUP_ID, message)
+            
+            except Exception as e:
+                log.error("Error in monitor loop: %s", e, exc_info=True)
+            
+            time.sleep(20)
+
+    def _handle_status_request(self, data: dict):
+        log.info("On-demand Wi-Fi status request received.")
+        report = "--- Wi-Fi Network Status ---\n\n"
+        for device in self.devices:
+            name, ip = device["name"], device["ip"]
+            status = self.device_status.get(name, "Unknown")
+            report += f"Device: {name}\n  IP Address: {ip}\n  Status: {status}\n\n"
+        
+        self.telegram_bot.send_message_to_chat(self.WIFI_STATUS_GROUP_ID, report)

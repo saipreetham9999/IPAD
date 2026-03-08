@@ -1,7 +1,7 @@
 [
     {
-        "name": "saiphone",
-        "ip": "192.168.0.73"
+        "name": "Car",
+        "ip": "192.168.0.101",
+        "mac": "YOUR_DEVICE_MAC_ADDRESS_HERE"
     }
-
 ]
